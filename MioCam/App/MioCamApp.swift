@@ -6,10 +6,15 @@
 //
 
 import SwiftUI
+import UIKit
 import FirebaseCore
+import FirebaseAuth
 
 @main
 struct MioCamApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
+    @StateObject private var authService = AuthenticationService.shared
+    
     init() {
         // Firebase初期化
         FirebaseApp.configure()
@@ -18,14 +23,153 @@ struct MioCamApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environmentObject(authService)
+                .preferredColorScheme(.light)
         }
     }
 }
 
-// プレースホルダー: 後で実装
+/// メインコンテンツビュー（認証状態に応じて画面を切り替え）
 struct ContentView: View {
+    @EnvironmentObject var authService: AuthenticationService
+    
     var body: some View {
-        Text("MioCam")
-            .font(.system(.largeTitle, design: .rounded))
+        Group {
+            if authService.isAuthenticated {
+                RoleSelectionView()
+            } else {
+                SignInWithAppleView()
+            }
+        }
     }
 }
+
+/// 役割選択画面
+struct RoleSelectionView: View {
+    @EnvironmentObject var authService: AuthenticationService
+    
+    enum AppRole {
+        case camera
+        case monitor
+    }
+    
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 32) {
+                Spacer()
+                
+                // タイトルエリア
+                VStack(spacing: 12) {
+                    Image("AppIconImage")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 150, height: 150)
+                    
+                    Text("MioCam")
+                        .font(.system(.largeTitle, design: .rounded))
+                        .fontWeight(.bold)
+                        .foregroundColor(.mioTextPrimary)
+                    
+                    Text("このデバイスの役割を選んでください")
+                        .font(.system(.body))
+                        .foregroundColor(.mioTextSecondary)
+                }
+                
+                Spacer()
+                
+                // 役割選択ボタン
+                VStack(spacing: 16) {
+                    // カメラボタン
+                    NavigationLink(value: AppRole.camera) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "video.fill")
+                                .font(.system(size: 28))
+                                .frame(width: 44)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("カメラ")
+                                    .font(.system(.title3, design: .rounded))
+                                    .fontWeight(.semibold)
+                                
+                                Text("このデバイスで映像を配信します")
+                                    .font(.system(.caption))
+                                    .opacity(0.8)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.mioAccent)
+                        )
+                    }
+                    
+                    // モニターボタン
+                    NavigationLink(value: AppRole.monitor) {
+                        HStack(spacing: 16) {
+                            Image(systemName: "eye.fill")
+                                .font(.system(size: 28))
+                                .frame(width: 44)
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("モニター")
+                                    .font(.system(.title3, design: .rounded))
+                                    .fontWeight(.semibold)
+                                
+                                Text("別のデバイスの映像を見ます")
+                                    .font(.system(.caption))
+                                    .opacity(0.8)
+                            }
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 20)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.mioAccentSub)
+                        )
+                    }
+                }
+                .padding(.horizontal, 24)
+                
+                Spacer()
+                
+                // サインアウトボタン
+                Button {
+                    try? authService.signOut()
+                } label: {
+                    Text("サインアウト")
+                        .font(.system(.footnote))
+                        .foregroundColor(.mioTextSecondary)
+                }
+                .padding(.bottom, 32)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.mioPrimary.ignoresSafeArea())
+            .navigationDestination(for: AppRole.self) { role in
+                switch role {
+                case .camera:
+                    CameraModeView()
+                        .environmentObject(authService)
+                case .monitor:
+                    MonitorModeView()
+                        .environmentObject(authService)
+                }
+            }
+        }
+    }
+}
+
+// Hashableに準拠させてnavigationDestinationで使えるようにする
+extension RoleSelectionView.AppRole: Hashable {}

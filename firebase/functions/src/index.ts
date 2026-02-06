@@ -10,6 +10,8 @@ const BATCH_LIMIT = 500; // Firestore batch操作の上限
 
 /**
  * Firestore batch操作を500件ごとにチャンク分割して実行
+ * @param {admin.firestore.QueryDocumentSnapshot[]} docs 削除対象のドキュメント配列
+ * @return {Promise<number>} 削除されたドキュメント数
  */
 async function deleteInBatches(
   docs: admin.firestore.QueryDocumentSnapshot[]
@@ -43,8 +45,9 @@ export const cleanupStaleSessions = onSchedule(
   {
     schedule: "*/5 * * * *",
     timeZone: "Asia/Tokyo",
+    region: "asia-northeast1",
   },
-  async (event) => {
+  async () => {
     const now = Date.now();
     const cutoffTime = now - FIVE_MINUTES_MS;
 
@@ -52,7 +55,8 @@ export const cleanupStaleSessions = onSchedule(
       // 全カメラのセッションをスキャン
       const sessionsSnapshot = await db.collectionGroup("sessions")
         .where("status", "==", "waiting")
-        .where("createdAt", "<", admin.firestore.Timestamp.fromMillis(cutoffTime))
+        .where("createdAt", "<",
+          admin.firestore.Timestamp.fromMillis(cutoffTime))
         .get();
 
       const deletedCount = await deleteInBatches(sessionsSnapshot.docs);
@@ -60,8 +64,6 @@ export const cleanupStaleSessions = onSchedule(
       if (deletedCount > 0) {
         console.log(`Deleted ${deletedCount} stale sessions`);
       }
-
-      return {deletedCount};
     } catch (error) {
       console.error("Error cleaning up stale sessions:", error);
       throw error;
@@ -77,8 +79,9 @@ export const cleanupDisconnectedSessions = onSchedule(
   {
     schedule: "0 * * * *",
     timeZone: "Asia/Tokyo",
+    region: "asia-northeast1",
   },
-  async (event) => {
+  async () => {
     const now = Date.now();
     const cutoffTime = now - ONE_HOUR_MS;
 
@@ -86,7 +89,8 @@ export const cleanupDisconnectedSessions = onSchedule(
       // 全カメラのセッションをスキャン
       const sessionsSnapshot = await db.collectionGroup("sessions")
         .where("status", "==", "disconnected")
-        .where("createdAt", "<", admin.firestore.Timestamp.fromMillis(cutoffTime))
+        .where("createdAt", "<",
+          admin.firestore.Timestamp.fromMillis(cutoffTime))
         .get();
 
       const deletedCount = await deleteInBatches(sessionsSnapshot.docs);
@@ -94,8 +98,6 @@ export const cleanupDisconnectedSessions = onSchedule(
       if (deletedCount > 0) {
         console.log(`Deleted ${deletedCount} disconnected sessions`);
       }
-
-      return {deletedCount};
     } catch (error) {
       console.error("Error cleaning up disconnected sessions:", error);
       throw error;

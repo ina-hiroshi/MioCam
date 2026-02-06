@@ -1,0 +1,234 @@
+//
+//  MonitorModeView.swift
+//  MioCam
+//
+//  Created on 2026-02-06.
+//
+
+import SwiftUI
+
+/// モニターモード画面
+struct MonitorModeView: View {
+    @EnvironmentObject var authService: AuthenticationService
+    @StateObject private var viewModel = MonitorViewModel()
+    @State private var showQRScanner = false
+    @State private var pairingError: String?
+    @State private var showPairingError = false
+    @State private var isPairing = false
+    @State private var selectedCameraLink: MonitorLinkModel?
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            if viewModel.isLoading || isPairing {
+                Spacer()
+                ProgressView(isPairing ? "ペアリング中..." : "読み込み中...")
+                    .foregroundColor(.mioTextSecondary)
+                Spacer()
+            } else if viewModel.pairedCameras.isEmpty {
+                emptyStateView
+            } else {
+                cameraListView
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.mioPrimary.ignoresSafeArea())
+        .navigationTitle("モニター")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button {
+                    showQRScanner = true
+                } label: {
+                    Image(systemName: "qrcode.viewfinder")
+                        .foregroundColor(.mioAccent)
+                }
+            }
+        }
+        .task {
+            if let userId = authService.currentUser?.uid {
+                viewModel.isLoading = true
+                // 初回読み込み
+                await viewModel.loadPairedCameras(monitorUserId: userId)
+                // リアルタイム監視開始
+                viewModel.startObservingPairedCameras(monitorUserId: userId)
+            }
+        }
+        .onDisappear {
+            viewModel.stopObservingPairedCameras()
+        }
+        .fullScreenCover(isPresented: $showQRScanner) {
+            QRScannerView { cameraId, pairingCode in
+                Task { await pairCamera(cameraId: cameraId, pairingCode: pairingCode) }
+            }
+        }
+        .fullScreenCover(item: $selectedCameraLink) { link in
+            LiveView(viewModel: viewModel, cameraLink: link)
+                .environmentObject(authService)
+        }
+        .alert("ペアリングエラー", isPresented: $showPairingError) {
+            Button("OK") {
+                pairingError = nil
+                showPairingError = false
+            }
+        } message: {
+            if let error = pairingError {
+                Text(error)
+            }
+        }
+        .alert("エラー", isPresented: .init(
+            get: { viewModel.errorMessage != nil },
+            set: { if !$0 { viewModel.errorMessage = nil } }
+        )) {
+            Button("OK") { viewModel.errorMessage = nil }
+        } message: {
+            if let msg = viewModel.errorMessage {
+                Text(msg)
+            }
+        }
+    }
+    
+    // MARK: - 空の状態
+    
+    private var emptyStateView: some View {
+        VStack(spacing: 16) {
+            Spacer()
+            
+            Image(systemName: "qrcode.viewfinder")
+                .font(.system(size: 56))
+                .foregroundColor(.mioTextSecondary.opacity(0.5))
+            
+            Text("ペアリング済みのカメラがありません")
+                .font(.system(.body, design: .rounded))
+                .foregroundColor(.mioTextSecondary)
+            
+            Text("カメラのQRコードを読み取って\nペアリングしましょう")
+                .font(.system(.subheadline))
+                .foregroundColor(.mioTextSecondary.opacity(0.7))
+                .multilineTextAlignment(.center)
+            
+            Button {
+                showQRScanner = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "qrcode.viewfinder")
+                    Text("QRコードをスキャン")
+                }
+                .font(.system(.body, design: .rounded))
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.mioAccentSub)
+                )
+            }
+            .padding(.top, 8)
+            
+            Spacer()
+        }
+    }
+    
+    // MARK: - カメラ一覧
+    
+    private var cameraListView: some View {
+        ScrollView {
+            LazyVStack(spacing: 12) {
+                ForEach(viewModel.pairedCameras, id: \.cameraId) { link in
+                    Button {
+                        if link.isActive {
+                            selectedCameraLink = link
+                        }
+                    } label: {
+                        CameraListRow(link: link)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+        }
+    }
+    
+    // MARK: - ペアリング処理
+    
+    private func pairCamera(cameraId: String, pairingCode: String) async {
+        guard let userId = authService.currentUser?.uid else { return }
+        isPairing = true
+        pairingError = nil
+        
+        do {
+            _ = try await viewModel.pairWithCamera(
+                cameraId: cameraId,
+                pairingCode: pairingCode,
+                monitorUserId: userId
+            )
+        } catch {
+            pairingError = error.localizedDescription
+            showPairingError = true
+        }
+        
+        isPairing = false
+    }
+}
+
+// MARK: - カメラリスト行
+
+private struct CameraListRow: View {
+    let link: MonitorLinkModel
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // アイコン
+            ZStack {
+                Circle()
+                    .fill(link.isActive ? Color.mioAccent.opacity(0.15) : Color.mioTextSecondary.opacity(0.1))
+                    .frame(width: 48, height: 48)
+                
+                Image(systemName: "video.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(link.isActive ? .mioAccent : .mioTextSecondary)
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(link.cameraDeviceName)
+                    .font(.system(.body, design: .rounded))
+                    .fontWeight(.medium)
+                    .foregroundColor(.mioTextPrimary)
+                
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(link.isActive ? Color.mioSuccess : Color.mioTextSecondary)
+                        .frame(width: 6, height: 6)
+                    
+                    Text(link.isActive ? "タップして接続" : "無効")
+                        .font(.system(.caption))
+                        .foregroundColor(link.isActive ? .mioTextSecondary : .mioTextSecondary.opacity(0.7))
+                }
+            }
+            
+            Spacer()
+            
+            if link.isActive {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.mioTextSecondary)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.mioSecondaryBg)
+        )
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
+    }
+}
+
+
+#Preview {
+    NavigationStack {
+        MonitorModeView()
+            .environmentObject(AuthenticationService.shared)
+    }
+}
