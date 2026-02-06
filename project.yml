@@ -39,6 +39,10 @@ targets:
         CFBundleVersion: 1
         CFBundleShortVersionString: 1.0.0
         UILaunchScreen: {}
+        NSCameraUsageDescription: "MioCamは見守りカメラとして映像を配信するためにカメラへのアクセスが必要です。"
+        NSMicrophoneUsageDescription: "MioCamは双方向音声通話機能（Phase 3）でマイクへのアクセスが必要です。"
+        UIBackgroundModes:
+          - audio
     entitlements:
       path: MioCam/Resources/MioCam.entitlements
     capabilities:

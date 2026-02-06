@@ -548,7 +548,9 @@ service cloud.firestore {
     
     // モニターリンク
     match /monitorLinks/{linkId} {
-      allow read, write: if request.auth != null && 
+      allow create: if request.auth != null && 
+        request.resource.data.monitorUserId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && 
         resource.data.monitorUserId == request.auth.uid;
     }
   }
