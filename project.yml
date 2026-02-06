@@ -1,0 +1,106 @@
+name: MioCam
+options:
+  bundleIdPrefix: com.itoguchi
+  deploymentTarget:
+    iOS: "16.0"
+  developmentLanguage: ja
+  xcodeVersion: "15.0"
+
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: 11.0.0
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    from: 125.0.0
+
+targets:
+  MioCam:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: MioCam
+        excludes:
+          - "**/*.md"
+    resources:
+      - path: MioCam/Resources/Assets.xcassets
+        type: assetCatalog
+      - path: MioCam/Resources/Info.plist
+        type: plist
+      - path: GoogleService-Info.plist
+        type: file
+    info:
+      path: MioCam/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: MioCam
+        CFBundleIdentifier: com.itoguchi.MioCam
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundleVersion: 1
+        CFBundleShortVersionString: 1.0.0
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default Configuration
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    entitlements:
+      path: MioCam/Resources/MioCam.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.itoguchi.MioCam
+        SWIFT_VERSION: 5.9
+        TARGETED_DEVICE_FAMILY: "1"
+        IPHONEOS_DEPLOYMENT_TARGET: 16.0
+        DEVELOPMENT_TEAM: ""
+        CODE_SIGN_IDENTITY: "Apple Development"
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_PREVIEWS: true
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"
+        OTHER_SWIFT_FLAGS: "$(inherited)"
+    dependencies:
+      - package: Firebase
+        products:
+          - FirebaseAuth
+          - FirebaseFirestore
+          - FirebaseCrashlytics
+          - FirebaseMessaging
+      - package: WebRTC
+        products:
+          - WebRTC
+    prebuildScripts:
+      - name: Copy GoogleService-Info.plist
+        script: |
+          if [ ! -f "${SRCROOT}/MioCam/Resources/GoogleService-Info.plist" ]; then
+            if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
+              cp "${SRCROOT}/GoogleService-Info.plist" "${SRCROOT}/MioCam/Resources/GoogleService-Info.plist"
+            fi
+          fi
+
+  MioCamTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: MioCamTests
+    dependencies:
+      - target: MioCam
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.itoguchi.MioCamTests
+        SWIFT_VERSION: 5.9
+        IPHONEOS_DEPLOYMENT_TARGET: 16.0
+
+schemes:
+  MioCam:
+    build:
+      targets:
+        MioCam: all
+    test:
+      targets:
+        - MioCamTests
+    run:
+      config: Debug
+    archive:
+      config: Release
