@@ -28,7 +28,7 @@ targets:
         type: assetCatalog
       - path: MioCam/Resources/Info.plist
         type: plist
-      - path: GoogleService-Info.plist
+      - path: MioCam/Resources/GoogleService-Info.plist
         type: file
     info:
       path: MioCam/Resources/Info.plist
@@ -39,14 +39,17 @@ targets:
         CFBundleVersion: 1
         CFBundleShortVersionString: 1.0.0
         UILaunchScreen: {}
-        UIApplicationSceneManifest:
-          UIApplicationSupportsMultipleScenes: false
-          UISceneConfigurations:
-            UIWindowSceneSessionRoleApplication:
-              - UISceneConfigurationName: Default Configuration
-                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
     entitlements:
       path: MioCam/Resources/MioCam.entitlements
+    capabilities:
+      com.apple.SignInWithApple:
+        enabled: true
+      com.apple.Push:
+        enabled: true
+      com.apple.BackgroundModes:
+        enabled: true
+        options:
+          - audio
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.itoguchi.MioCam
@@ -69,14 +72,6 @@ targets:
       - package: WebRTC
         products:
           - WebRTC
-    prebuildScripts:
-      - name: Copy GoogleService-Info.plist
-        script: |
-          if [ ! -f "${SRCROOT}/MioCam/Resources/GoogleService-Info.plist" ]; then
-            if [ -f "${SRCROOT}/GoogleService-Info.plist" ]; then
-              cp "${SRCROOT}/GoogleService-Info.plist" "${SRCROOT}/MioCam/Resources/GoogleService-Info.plist"
-            fi
-          fi
 
   MioCamTests:
     type: bundle.unit-test
