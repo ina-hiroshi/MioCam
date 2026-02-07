@@ -12,10 +12,11 @@ import FirebaseFirestore
 class FirestoreService {
     static let shared = FirestoreService()
     
-    let db: Firestore
+    lazy var db: Firestore = {
+        return Firestore.firestore()
+    }()
     
     private init() {
-        db = Firestore.firestore()
     }
     
     /// 現在のタイムスタンプを生成

@@ -53,15 +53,9 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didAdd stream: RTCMediaStream) {
         print("WebRTC: Did add stream: \(stream.streamId)")
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "L", "location": "WebRTCClient.swift:54", "message": "ストリーム追加", "data": ["streamId": stream.streamId, "videoTrackCount": stream.videoTracks.count, "audioTrackCount": stream.audioTracks.count], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         
         // リモートビデオトラックを取得
         if let videoTrack = stream.videoTracks.first {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "L", "location": "WebRTCClient.swift:58", "message": "ビデオトラック検出", "data": ["trackId": videoTrack.trackId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             remoteVideoTrack = videoTrack
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }

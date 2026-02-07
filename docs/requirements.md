@@ -4,7 +4,7 @@
 
 ### 1.1 コンセプト
 
-「古いiPhoneを、世界一シンプルな見守り窓に。」
+「iPhoneを、世界一シンプルな見守り窓に。」
 
 ### 1.2 ターゲットユーザー
 
@@ -909,7 +909,7 @@ Phase 2向けだが、設計方針は今から定義しておく:
 
 2. **リポジトリ情報を入力**
    - **Repository name**: `MioCam`
-   - **Description**: `見守りカメラアプリ - 古いiPhoneを世界一シンプルな見守り窓に`
+   - **Description**: `見守りカメラアプリ - iPhoneを世界一シンプルな見守り窓に`
    - **Visibility**: `Private`（プライベート）を選択
    - **Initialize this repository with**:
      - ✅ `Add a README file` はチェックしない（エージェントが作成）
@@ -1019,7 +1019,7 @@ AuthKey_*.p8
 ```markdown
 # MioCam
 
-見守りカメラアプリ - 「古いiPhoneを、世界一シンプルな見守り窓に。」
+見守りカメラアプリ - 「iPhoneを、世界一シンプルな見守り窓に。」
 
 ## プロジェクト概要
 

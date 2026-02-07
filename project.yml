@@ -45,6 +45,10 @@ targets:
           - audio
     entitlements:
       path: MioCam/Resources/MioCam.entitlements
+      properties:
+        com.apple.developer.applesignin:
+          - Default
+        aps-environment: production
     capabilities:
       com.apple.SignInWithApple:
         enabled: true
@@ -60,10 +64,7 @@ targets:
         SWIFT_VERSION: 5.9
         TARGETED_DEVICE_FAMILY: "1"
         IPHONEOS_DEPLOYMENT_TARGET: 16.0
-        # 開発チームIDを設定してください（XcodeのPreferences > Accountsで確認できます）
-        # 例: DEVELOPMENT_TEAM: "ABC123DEF4"
-        DEVELOPMENT_TEAM: ""
-        CODE_SIGN_IDENTITY: "Apple Development"
+        DEVELOPMENT_TEAM: NUZ8XA844N
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: true
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited)"

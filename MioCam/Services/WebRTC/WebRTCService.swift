@@ -94,7 +94,7 @@ class WebRTCService: NSObject {
         // WebRTCのデフォルトオーディオ設定を上書き
         let config = RTCAudioSessionConfiguration.webRTC()
         config.category = AVAudioSession.Category.playAndRecord.rawValue
-        config.categoryOptions = [.defaultToSpeaker, .allowBluetooth, .mixWithOthers]
+        config.categoryOptions = [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers]
         config.mode = AVAudioSession.Mode.videoChat.rawValue
         
         do {
@@ -136,9 +136,6 @@ class WebRTCService: NSObject {
     
     /// 新しいモニター接続を処理（カメラ側: SDP Offerを受け取ってAnswerを返す）
     func handleIncomingSession(sessionId: String, offer: RTCSessionDescription, monitorUserId: String? = nil) async throws {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "WebRTCService.swift:138", "message": "handleIncomingSession開始", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         let client = createPeerConnection(sessionId: sessionId)
         
         // monitorUserIdをマッピングに保存
@@ -163,45 +160,21 @@ class WebRTCService: NSObject {
         }
         
         // Offerを設定
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "WebRTCService.swift:163", "message": "RemoteDescription設定前", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         try await client.peerConnection.setRemoteDescription(offer)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "WebRTCService.swift:163", "message": "RemoteDescription設定後", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         
         // Answerを生成
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:166", "message": "Answer生成前", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
         let answer = try await client.peerConnection.answer(for: constraints)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:168", "message": "Answer生成完了", "data": ["sessionId": sessionId, "answerType": RTCSessionDescription.string(for: answer.type)], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         try await client.peerConnection.setLocalDescription(answer)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:169", "message": "LocalDescription設定完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         
         delegate?.webRTCService(self, didGenerateAnswer: answer, for: sessionId)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:170", "message": "delegate呼び出し完了", "data": ["sessionId": sessionId, "delegateExists": delegate != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
     }
     
     // MARK: - Monitor Side (受信側)
     
     /// モニター側から接続を開始（SDP Offerを生成）
     func startConnection(sessionId: String) async throws {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "WebRTCService.swift:176", "message": "startConnection開始", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         let client = createPeerConnection(sessionId: sessionId)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "WebRTCService.swift:179", "message": "PeerConnection作成完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         
         // モニター側のローカルオーディオトラックを作成（プッシュ・トゥ・トーク用、初期状態は無効）
         if monitorLocalAudioTrack == nil {
@@ -220,9 +193,6 @@ class WebRTCService: NSObject {
         }
         
         // Offerを生成（音声受信を有効化）
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:196", "message": "Offer生成前", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         let constraints = RTCMediaConstraints(
             mandatoryConstraints: [
                 "OfferToReceiveAudio": "true",
@@ -231,18 +201,9 @@ class WebRTCService: NSObject {
             optionalConstraints: nil
         )
         let offer = try await client.peerConnection.offer(for: constraints)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:203", "message": "Offer生成完了", "data": ["sessionId": sessionId, "offerType": RTCSessionDescription.string(for: offer.type)], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         try await client.peerConnection.setLocalDescription(offer)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:206", "message": "LocalDescription設定完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         
         delegate?.webRTCService(self, didGenerateOffer: offer, for: sessionId)
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:207", "message": "delegate呼び出し完了", "data": ["sessionId": sessionId, "delegateExists": delegate != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
     }
     
     /// SDP Answerを受け取って設定（モニター側）
@@ -264,9 +225,6 @@ class WebRTCService: NSObject {
         
         // remote descriptionが設定されていない場合はエラーを無視（後で再試行される）
         guard client.peerConnection.remoteDescription != nil else {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "N", "location": "WebRTCService.swift:260", "message": "ICE candidate追加スキップ（remote description未設定）", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             return
         }
         

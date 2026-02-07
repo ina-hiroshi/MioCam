@@ -72,7 +72,6 @@ class CameraViewModel: ObservableObject {
             let osVersion = UIDevice.current.systemVersion
             
             var id: String
-            var isNewCamera = false
             
             // 既存のカメラを確認
             if let existingCamera = try await cameraService.getExistingCamera(ownerUserId: ownerUserId) {
@@ -96,7 +95,6 @@ class CameraViewModel: ObservableObject {
                     deviceModel: deviceModel,
                     osVersion: osVersion
                 )
-                isNewCamera = true
             }
             
             cameraId = id
@@ -178,24 +176,15 @@ class CameraViewModel: ObservableObject {
     
     /// 新規セッション（モニター接続）を監視
     private func startObservingSessions(cameraId: String) {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "H", "location": "CameraViewModel.swift:174", "message": "セッション監視開始", "data": ["cameraId": cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         
         // 既存のwaitingセッションを即座に処理（監視開始前に作成されたセッションに対応）
         Task { @MainActor in
             do {
                 let existingSessions = try await signalingService.getWaitingSessions(cameraId: cameraId)
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "H", "location": "CameraViewModel.swift:180", "message": "既存セッション取得", "data": ["cameraId": cameraId, "sessionCount": existingSessions.count], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 for session in existingSessions {
                     await handleNewSession(session, cameraId: cameraId)
                 }
             } catch {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "H", "location": "CameraViewModel.swift:186", "message": "既存セッション取得エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 print("既存セッション取得エラー: \(error.localizedDescription)")
             }
         }
@@ -204,16 +193,10 @@ class CameraViewModel: ObservableObject {
             Task { @MainActor in
                 switch result {
                 case .success(let sessions):
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "H", "location": "CameraViewModel.swift:195", "message": "新規セッション検知", "data": ["cameraId": cameraId, "sessionCount": sessions.count], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                     for session in sessions {
                         await self?.handleNewSession(session, cameraId: cameraId)
                     }
                 case .failure(let error):
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "H", "location": "CameraViewModel.swift:202", "message": "セッション監視エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                     print("セッション監視エラー: \(error.localizedDescription)")
                 }
             }
@@ -222,23 +205,14 @@ class CameraViewModel: ObservableObject {
     
     /// 新しいセッション（モニター接続要求）を処理
     private func handleNewSession(_ session: SessionModel, cameraId: String) async {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "I", "location": "CameraViewModel.swift:190", "message": "handleNewSession開始", "data": ["sessionId": session.id ?? "nil", "hasOffer": session.offer != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         guard let sessionId = session.id,
               let offerDict = session.offer,
               let offer = RTCSessionDescription.from(dict: offerDict) else {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "I", "location": "CameraViewModel.swift:193", "message": "セッションデータ不正", "data": ["sessionId": session.id ?? "nil", "hasOffer": session.offer != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             return
         }
         
         // 重複処理を防止
         guard !processedSessionIds.contains(sessionId) else {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "I", "location": "CameraViewModel.swift:198", "message": "重複セッション", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             return
         }
         processedSessionIds.insert(sessionId)
@@ -258,13 +232,7 @@ class CameraViewModel: ObservableObject {
             }
             
             // WebRTCでOfferを処理してAnswerを生成
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "CameraViewModel.swift:218", "message": "handleIncomingSession呼び出し前", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             try await webRTCService.handleIncomingSession(sessionId: sessionId, offer: offer, monitorUserId: session.monitorUserId)
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "CameraViewModel.swift:218", "message": "handleIncomingSession呼び出し後", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             
             // 接続モニター情報を追加
             let isAudioAllowed = audioAllowedUserIds.contains(session.monitorUserId)
@@ -309,16 +277,10 @@ class CameraViewModel: ObservableObject {
     
     /// 接続済みセッションの監視（切断検知用）
     private func startObservingConnectedSessions(cameraId: String) {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "Q", "location": "CameraViewModel.swift:215", "message": "接続済みセッション監視開始", "data": ["cameraId": cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         connectedSessionListener = signalingService.observeConnectedSessions(cameraId: cameraId) { [weak self] result in
             Task { @MainActor in
                 switch result {
                 case .success(let sessions):
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "Q", "location": "CameraViewModel.swift:220", "message": "接続済みセッション変更検知", "data": ["cameraId": cameraId, "sessionCount": sessions.count, "currentMonitors": self?.connectedMonitors.count ?? 0], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                     // 現在のconnectedMonitorsと比較して、削除されたセッションを検知
                     let currentSessionIds = Set(self?.connectedMonitors.map { $0.id } ?? [])
                     let firestoreSessionIds = Set(sessions.map { $0.id ?? "" }.filter { !$0.isEmpty })
@@ -327,9 +289,6 @@ class CameraViewModel: ObservableObject {
                     let removedSessionIds = currentSessionIds.subtracting(firestoreSessionIds)
                     
                     if !removedSessionIds.isEmpty {
-                        // #region agent log
-                        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "Q", "location": "CameraViewModel.swift:230", "message": "セッション削除検知", "data": ["removedSessionIds": Array(removedSessionIds)], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                        // #endregion
                         guard let cameraId = self?.cameraId else { return }
                         
                         // connectedMonitorsから削除されたセッションを削除
@@ -353,9 +312,6 @@ class CameraViewModel: ObservableObject {
                         self?.adjustQualityBasedOnMonitorCount()
                     }
                 case .failure(let error):
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "Q", "location": "CameraViewModel.swift:252", "message": "接続済みセッション監視エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                     print("接続済みセッション監視エラー: \(error.localizedDescription)")
                 }
             }
@@ -529,9 +485,6 @@ extension CameraViewModel: WebRTCServiceDelegate {
         Task { @MainActor in
             switch state {
             case .disconnected, .failed, .closed:
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "O", "location": "CameraViewModel.swift:464", "message": "接続切断検知", "data": ["sessionId": sessionId, "state": "\(state)", "currentCount": connectedMonitorCount], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 // 接続が切断された場合、モニター数を減らす
                 guard let cameraId = cameraId else { return }
                 
@@ -540,13 +493,7 @@ extension CameraViewModel: WebRTCServiceDelegate {
                 
                 // connectedMonitors.countを使用して同期を保つ
                 let newCount = connectedMonitors.count
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "O", "location": "CameraViewModel.swift:476", "message": "デバイス数更新前", "data": ["sessionId": sessionId, "oldCount": connectedMonitorCount, "newCount": newCount], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 connectedMonitorCount = newCount
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "O", "location": "CameraViewModel.swift:477", "message": "デバイス数更新後", "data": ["sessionId": sessionId, "connectedMonitorCount": connectedMonitorCount], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 
                 // Firestoreへの更新は非同期で実行（UIの更新をブロックしない）
                 Task.detached { [cameraId, newCount] in
@@ -589,32 +536,17 @@ extension CameraViewModel: WebRTCServiceDelegate {
     
     nonisolated func webRTCService(_ service: WebRTCService, didGenerateAnswer sdp: RTCSessionDescription, for sessionId: String) {
         Task { @MainActor in
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "CameraViewModel.swift:470", "message": "didGenerateAnswer呼び出し", "data": ["sessionId": sessionId, "cameraId": cameraId ?? "nil"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             guard let cameraId = cameraId else {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "CameraViewModel.swift:473", "message": "cameraIdがnil", "data": [:], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 return
             }
             
             do {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "CameraViewModel.swift:477", "message": "setAnswer呼び出し前", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 try await signalingService.setAnswer(
                     cameraId: cameraId,
                     sessionId: sessionId,
                     answer: sdp.toDict()
                 )
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "CameraViewModel.swift:481", "message": "setAnswer呼び出し後", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
             } catch {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "CameraViewModel.swift:483", "message": "Answer送信エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 print("Answer送信エラー: \(error.localizedDescription)")
             }
         }

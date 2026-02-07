@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AuthenticationServices
+import Foundation
 
 
 /// Sign in with Apple 画面
@@ -33,7 +34,7 @@ struct SignInWithAppleView: View {
             
             // 説明テキスト
             VStack(spacing: 12) {
-                Text("古いiPhoneを、世界一シンプルな見守り窓に。")
+                Text("iPhoneを、世界一シンプルな見守り窓に。")
                     .font(.system(.title3, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(.mioTextPrimary)

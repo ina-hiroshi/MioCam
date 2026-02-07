@@ -16,8 +16,7 @@ struct MioCamApp: App {
     @StateObject private var authService = AuthenticationService.shared
     
     init() {
-        // Firebase初期化
-        FirebaseApp.configure()
+        // Firebase初期化はAppDelegate.didFinishLaunchingWithOptionsで実施
     }
     
     var body: some Scene {

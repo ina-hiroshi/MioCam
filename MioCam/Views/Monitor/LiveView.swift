@@ -373,13 +373,7 @@ struct LiveView: View {
     }
     
     private func startConnection() async {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "A", "location": "LiveView.swift:375", "message": "startConnection開始", "data": ["cameraId": cameraLink.cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         guard authService.currentUser?.uid != nil else {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "A", "location": "LiveView.swift:377", "message": "認証エラー", "data": [:], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             connectionError = "認証が必要です"
             isConnecting = false
             return
@@ -402,9 +396,6 @@ struct LiveView: View {
         do {
             // カメラ情報を取得
             guard let camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraLink.cameraId) else {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "B", "location": "LiveView.swift:398", "message": "カメラ情報取得失敗", "data": ["cameraId": cameraLink.cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 connectionError = "カメラが見つかりません"
                 isConnecting = false
                 return
@@ -412,9 +403,6 @@ struct LiveView: View {
             
             // カメラがオフラインの場合は接続を試みない
             guard camera.isOnline else {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "C", "location": "LiveView.swift:405", "message": "カメラオフライン", "data": ["isOnline": camera.isOnline], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 connectionError = "カメラがオフラインです"
                 isConnecting = false
                 offlineMessage = "カメラがオフラインです"
@@ -449,24 +437,12 @@ struct LiveView: View {
             // セッションIDを生成（UUID）
             let newSessionId = UUID().uuidString
             sessionId = newSessionId
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:439", "message": "セッションID生成", "data": ["sessionId": newSessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             
             // 1. WebRTC接続を開始してOfferを生成
             // Offerはdelegate経由で受け取る（handleOfferGenerated）
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:443", "message": "WebRTC接続開始前", "data": ["sessionId": newSessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             try await webRTCService.startConnection(sessionId: newSessionId)
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:443", "message": "WebRTC接続開始後", "data": ["sessionId": newSessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             
         } catch {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:446", "message": "startConnectionエラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             connectionError = error.localizedDescription
             isConnecting = false
         }
@@ -475,13 +451,7 @@ struct LiveView: View {
     // MARK: - WebRTC Delegate Handlers
     
     func handleOfferGenerated(_ offer: RTCSessionDescription, sessionId: String) async {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "LiveView.swift:453", "message": "handleOfferGenerated開始", "data": ["sessionId": sessionId, "expectedSessionId": self.sessionId ?? "nil"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         guard let monitorUserId = authService.currentUser?.uid else {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "LiveView.swift:455", "message": "認証エラー", "data": [:], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             connectionError = "認証が必要です"
             isConnecting = false
             return
@@ -489,9 +459,6 @@ struct LiveView: View {
         
         // セッションIDが一致しているか確認
         guard sessionId == self.sessionId else {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "LiveView.swift:461", "message": "セッションID不一致", "data": ["received": sessionId, "expected": self.sessionId ?? "nil"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             return
         }
         
@@ -520,9 +487,6 @@ struct LiveView: View {
             let monitorDeviceName = UIDevice.current.name
             
             // 2. Firestoreにセッション + Offerを書き込み（UUIDをドキュメントIDとして使用）
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "LiveView.swift:490", "message": "Firestoreセッション作成前", "data": ["cameraId": cameraLink.cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             _ = try await signalingService.createSession(
                 cameraId: cameraLink.cameraId,
                 sessionId: sessionId,
@@ -532,24 +496,15 @@ struct LiveView: View {
                 pairingCode: camera.pairingCode,
                 offer: offer.toDict()
             )
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "LiveView.swift:498", "message": "Firestoreセッション作成後", "data": ["cameraId": cameraLink.cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             
             // 3. Answerを監視（既存のAnswerも即座に確認）
             Task { @MainActor in
                 do {
                     // 既存のAnswerを確認（監視開始前に書き込まれたAnswerに対応）
                     if let existingAnswer = try await signalingService.getAnswer(cameraId: cameraLink.cameraId, sessionId: sessionId) {
-                        // #region agent log
-                        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:501", "message": "既存Answer検出", "data": ["cameraId": cameraLink.cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                        // #endregion
                         await handleAnswerReceived(.success(existingAnswer), sessionId: sessionId)
                     }
                 } catch {
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:507", "message": "既存Answer取得エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                 }
             }
             
@@ -583,18 +538,12 @@ struct LiveView: View {
             }
             
         } catch {
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "LiveView.swift:530", "message": "handleOfferGeneratedエラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             connectionError = error.localizedDescription
             isConnecting = false
         }
     }
     
     func handleAnswerReceived(_ result: Result<[String: Any]?, Error>, sessionId: String) async {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:536", "message": "handleAnswerReceived呼び出し", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         // セッションIDが一致しているか確認
         guard sessionId == self.sessionId else {
             return
@@ -604,31 +553,19 @@ struct LiveView: View {
         case .success(let answerDict):
             guard let answerDict = answerDict,
                   let answer = RTCSessionDescription.from(dict: answerDict) else {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:545", "message": "Answer未受信", "data": ["answerDict": answerDict != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 // Answerがまだない場合は待機
                 return
             }
             
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:550", "message": "Answer受信成功", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             do {
                 // 5. Answerを設定
                 try await webRTCService.handleAnswer(sessionId: sessionId, answer: answer)
             } catch {
-                // #region agent log
-                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:554", "message": "Answer設定エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                // #endregion
                 connectionError = "Answerの設定に失敗しました: \(error.localizedDescription)"
                 isConnecting = false
             }
             
         case .failure(let error):
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:559", "message": "Answer受信エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             connectionError = "Answerの受信に失敗しました: \(error.localizedDescription)"
             isConnecting = false
         }
@@ -702,9 +639,6 @@ struct LiveView: View {
     }
     
     func handleRemoteVideoTrack(_ track: RTCVideoTrack) {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "L", "location": "LiveView.swift:628", "message": "リモートビデオトラック受信", "data": ["trackId": track.trackId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         // リモートビデオトラックを受信
         videoTrack = track
         isConnecting = false
@@ -758,9 +692,6 @@ struct LiveView: View {
     }
     
     func handleConnectionStateChange(_ state: WebRTCConnectionState, sessionId: String) {
-        // #region agent log
-        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "M", "location": "LiveView.swift:681", "message": "接続状態変更", "data": ["sessionId": sessionId, "state": "\(state)"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-        // #endregion
         // セッションIDが一致しているか確認
         guard sessionId == self.sessionId else {
             return
@@ -768,17 +699,11 @@ struct LiveView: View {
         
         switch state {
         case .connected:
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "M", "location": "LiveView.swift:688", "message": "接続完了", "data": ["sessionId": sessionId, "hasVideoTrack": videoTrack != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             isConnecting = false
             connectionError = nil
             // WebRTC接続完了後にスピーカー出力を確実にする
             backgroundAudioService.ensureSpeakerOutput()
         case .disconnected, .failed, .closed:
-            // #region agent log
-            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "M", "location": "LiveView.swift:694", "message": "接続切断", "data": ["sessionId": sessionId, "state": "\(state)"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-            // #endregion
             isConnecting = false
             if connectionError == nil {
                 connectionError = "接続が切断されました"
@@ -815,27 +740,15 @@ struct LiveView: View {
             // Firestoreのセッションを削除（カメラ側のデバイス数更新を即座に反映）
             Task {
                 do {
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:813", "message": "セッション切断処理開始", "data": ["sessionId": sessionId, "cameraId": cameraLink.cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                     // まずセッションのステータスをdisconnectedに更新（カメラ側が即座に検知できるように）
                     try await signalingService.updateSessionStatus(
                         cameraId: cameraLink.cameraId,
                         sessionId: sessionId,
                         status: .disconnected
                     )
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:820", "message": "セッションステータス更新完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                     // その後、セッションを削除
                     try await signalingService.deleteSession(cameraId: cameraLink.cameraId, sessionId: sessionId)
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:824", "message": "セッション削除完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                 } catch {
-                    // #region agent log
-                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:826", "message": "セッション削除エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
-                    // #endregion
                     print("セッション削除エラー: \(error.localizedDescription)")
                 }
             }

@@ -20,12 +20,19 @@ class AuthenticationService: NSObject, ObservableObject {
     @Published var currentUser: User?
     @Published var isAuthenticated: Bool = false
     
-    private let auth = Auth.auth()
-    private let db = FirestoreService.shared.db
+    private lazy var auth: Auth = Auth.auth()
+    private lazy var db: Firestore = FirestoreService.shared.db
     private var authStateListener: AuthStateDidChangeListenerHandle?
+    private var isSetup = false
     
     private override init() {
         super.init()
+    }
+    
+    /// Firebase初期化後に呼ぶ（AppDelegateから）
+    func setup() {
+        guard !isSetup else { return }
+        isSetup = true
         setupAuthStateListener()
     }
     
@@ -75,43 +82,7 @@ class AuthenticationService: NSObject, ObservableObject {
     
     deinit {
         if let listener = authStateListener {
-            auth.removeStateDidChangeListener(listener)
-        }
-    }
-}
-
-enum DebugLog {
-    private static let logPath = "/Users/inahiroshi/開発/MioCam/.cursor/debug.log"
-    
-    static func write(_ payload: [String: Any]) {
-        guard JSONSerialization.isValidJSONObject(payload),
-              let data = try? JSONSerialization.data(withJSONObject: payload),
-              let line = String(data: data, encoding: .utf8) else {
-            return
-        }
-        
-        let lineWithNewline = line + "\n"
-        
-        // ディレクトリが存在しない場合は作成
-        let directory = (logPath as NSString).deletingLastPathComponent
-        if !FileManager.default.fileExists(atPath: directory) {
-            try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true, attributes: nil)
-        }
-        
-        if let handle = FileHandle(forWritingAtPath: logPath) {
-            handle.seekToEndOfFile()
-            if let lineData = lineWithNewline.data(using: .utf8) {
-                handle.write(lineData)
-            }
-            try? handle.close()
-        } else {
-            // ファイルが存在しない場合は作成
-            if let lineData = lineWithNewline.data(using: .utf8) {
-                FileManager.default.createFile(atPath: logPath, contents: lineData, attributes: nil)
-            } else {
-                // フォールバック: write(toFile:)を使用
-                try? lineWithNewline.write(toFile: logPath, atomically: true, encoding: .utf8)
-            }
+            Auth.auth().removeStateDidChangeListener(listener)
         }
     }
 }
