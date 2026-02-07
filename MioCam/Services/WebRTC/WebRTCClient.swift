@@ -53,16 +53,15 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didAdd stream: RTCMediaStream) {
         print("WebRTC: Did add stream: \(stream.streamId)")
-        
         // #region agent log
-        let audioSession = AVAudioSession.sharedInstance()
-        let outputs = audioSession.currentRoute.outputs
-        let outputNames = outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ", ")
-        print("[MioCam-AudioDebug][HC] peerConnection didAdd stream - BEFORE track setup, category=\(audioSession.category.rawValue), mode=\(audioSession.mode.rawValue), outputs=[\(outputNames)]")
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "L", "location": "WebRTCClient.swift:54", "message": "ストリーム追加", "data": ["streamId": stream.streamId, "videoTrackCount": stream.videoTracks.count, "audioTrackCount": stream.audioTracks.count], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
         // #endregion
         
         // リモートビデオトラックを取得
         if let videoTrack = stream.videoTracks.first {
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "L", "location": "WebRTCClient.swift:58", "message": "ビデオトラック検出", "data": ["trackId": videoTrack.trackId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             remoteVideoTrack = videoTrack
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
@@ -73,47 +72,6 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
         // リモートオーディオトラックを取得
         if let audioTrack = stream.audioTracks.first {
             remoteAudioTrack = audioTrack
-            // #region agent log
-            let beforeIsEnabled = audioTrack.isEnabled
-            let logData: [String: Any] = [
-                "beforeIsEnabled": beforeIsEnabled,
-                "trackId": audioTrack.trackId,
-                "kind": audioTrack.kind
-            ]
-            let logPath = "/Users/inahiroshi/開発/MioCam/.cursor/debug.log"
-            if let logFile = FileHandle(forWritingAtPath: logPath) {
-                logFile.seekToEndOfFile()
-                let logEntry = try! JSONSerialization.data(withJSONObject: [
-                    "location": "WebRTCClient.swift:74",
-                    "message": "peerConnection didAdd stream - audioTrack found",
-                    "data": logData,
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "B"
-                ])
-                logFile.write(logEntry)
-                logFile.write("\n".data(using: .utf8)!)
-                logFile.closeFile()
-            } else {
-                FileManager.default.createFile(atPath: logPath, contents: nil)
-                if let logFile = FileHandle(forWritingAtPath: logPath) {
-                    let logEntry = try! JSONSerialization.data(withJSONObject: [
-                        "location": "WebRTCClient.swift:74",
-                        "message": "peerConnection didAdd stream - audioTrack found",
-                        "data": logData,
-                        "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "B"
-                    ])
-                    logFile.write(logEntry)
-                    logFile.write("\n".data(using: .utf8)!)
-                    logFile.closeFile()
-                }
-            }
-            print("[MioCam-AudioDebug][HC][HD] peerConnection didAdd stream - audioTrack found, isEnabled=\(audioTrack.isEnabled), source=\(String(describing: audioTrack.source))")
-            // #endregion
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 self.delegate?.webRTCClient(self, didReceiveRemoteAudioTrack: audioTrack)

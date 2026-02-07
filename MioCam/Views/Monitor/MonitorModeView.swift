@@ -135,14 +135,22 @@ struct MonitorModeView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(viewModel.pairedCameras, id: \.cameraId) { link in
+                    let cameraStatus = viewModel.cameraStatuses[link.cameraId]
+                    let isOnline = cameraStatus?.isOnline ?? false
+                    let canSelect = link.isActive && isOnline
+                    
                     Button {
-                        if link.isActive {
+                        if canSelect {
                             selectedCameraLink = link
                         }
                     } label: {
-                        CameraListRow(link: link)
+                        CameraListRow(
+                            link: link,
+                            cameraStatus: cameraStatus
+                        )
                     }
                     .buttonStyle(PlainButtonStyle())
+                    .disabled(!canSelect)
                 }
             }
             .padding(.horizontal, 24)
@@ -176,18 +184,27 @@ struct MonitorModeView: View {
 
 private struct CameraListRow: View {
     let link: MonitorLinkModel
+    let cameraStatus: CameraModel?
+    
+    private var isOnline: Bool {
+        cameraStatus?.isOnline ?? false
+    }
+    
+    private var canSelect: Bool {
+        link.isActive && isOnline
+    }
     
     var body: some View {
         HStack(spacing: 16) {
             // アイコン
             ZStack {
                 Circle()
-                    .fill(link.isActive ? Color.mioAccent.opacity(0.15) : Color.mioTextSecondary.opacity(0.1))
+                    .fill(canSelect ? Color.mioAccent.opacity(0.15) : Color.mioTextSecondary.opacity(0.1))
                     .frame(width: 48, height: 48)
                 
-                Image(systemName: "video.fill")
+                Image(systemName: isOnline ? "video.fill" : "video.slash.fill")
                     .font(.system(size: 20))
-                    .foregroundColor(link.isActive ? .mioAccent : .mioTextSecondary)
+                    .foregroundColor(canSelect ? .mioAccent : .mioTextSecondary)
             }
             
             VStack(alignment: .leading, spacing: 4) {
@@ -198,18 +215,18 @@ private struct CameraListRow: View {
                 
                 HStack(spacing: 6) {
                     Circle()
-                        .fill(link.isActive ? Color.mioSuccess : Color.mioTextSecondary)
+                        .fill(isOnline ? Color.mioSuccess : Color.mioError)
                         .frame(width: 6, height: 6)
                     
-                    Text(link.isActive ? "タップして接続" : "無効")
+                    Text(isOnline ? "オンライン" : "オフライン")
                         .font(.system(.caption))
-                        .foregroundColor(link.isActive ? .mioTextSecondary : .mioTextSecondary.opacity(0.7))
+                        .foregroundColor(isOnline ? .mioSuccess : .mioError)
                 }
             }
             
             Spacer()
             
-            if link.isActive {
+            if canSelect {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.mioTextSecondary)

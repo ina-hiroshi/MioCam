@@ -12,6 +12,7 @@ import AVFoundation
 /// カメラモード画面
 struct CameraModeView: View {
     @EnvironmentObject var authService: AuthenticationService
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = CameraViewModel()
     @State private var hasRegistered = false
     @State private var showError = false
@@ -19,6 +20,7 @@ struct CameraModeView: View {
     @State private var isCameraStarted = false
     @State private var showSettings = false
     @State private var showManualPairing = false
+    @State private var shouldDismissToRoleSelection = false
     
     private let captureService = CameraCaptureService.shared
     
@@ -53,8 +55,18 @@ struct CameraModeView: View {
         .sheet(isPresented: $showSettings) {
             CameraSettingsSheet(viewModel: viewModel) {
                 // カメラ停止時の処理
+                viewModel.stopCamera()
+                captureService.stopCapture()
+                isCameraStarted = false
+                hasRegistered = false
+                shouldDismissToRoleSelection = true
             }
             .environmentObject(authService)
+        }
+        .onChange(of: shouldDismissToRoleSelection) { newValue in
+            if newValue {
+                dismiss()
+            }
         }
         .task {
             await setupCamera()
@@ -82,13 +94,33 @@ struct CameraModeView: View {
         } message: {
             Text("カメラを使用するには、設定アプリでカメラへのアクセスを許可してください。")
         }
-        // モニター接続時にブラックアウトモードへ遷移
+        // カメラ登録済みの場合はブラックアウトモードへ遷移（接続数に関係なく）
         .fullScreenCover(isPresented: .init(
-            get: { viewModel.connectedMonitorCount > 0 && hasRegistered },
-            set: { _ in }
+            get: { hasRegistered && !shouldDismissToRoleSelection },
+            set: { isPresented in
+                // fullScreenCoverが閉じられた時（BlackoutViewから戻った時）
+                if !isPresented {
+                    // カメラが停止されている場合（isOnline=false または shouldDismissToRoleSelection=true）は役割選択画面に戻る
+                    // 接続数が0になってもカメラモードは維持する
+                    if !viewModel.isOnline || shouldDismissToRoleSelection {
+                        // onChangeを確実に呼び出すために、一度falseにリセットしてからtrueに設定
+                        shouldDismissToRoleSelection = false
+                        DispatchQueue.main.async {
+                            shouldDismissToRoleSelection = true
+                        }
+                    }
+                }
+            }
         )) {
-            BlackoutView(viewModel: viewModel)
-                .environmentObject(authService)
+            BlackoutView(viewModel: viewModel) {
+                // カメラ停止時の処理（BlackoutView → CameraModeView）
+                viewModel.stopCamera()
+                captureService.stopCapture()
+                isCameraStarted = false
+                hasRegistered = false
+                shouldDismissToRoleSelection = true
+            }
+            .environmentObject(authService)
         }
     }
     

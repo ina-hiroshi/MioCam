@@ -99,9 +99,6 @@ class WebRTCService: NSObject {
         
         do {
             try rtcAudioSession.setConfiguration(config)
-            // #region agent log
-            print("[MioCam-AudioDebug][FIX] configureRTCAudioSession - RTCAudioSession configured with videoChat mode and defaultToSpeaker")
-            // #endregion
         } catch {
             print("WebRTCService: RTCAudioSession設定エラー - \(error.localizedDescription)")
         }
@@ -135,28 +132,12 @@ class WebRTCService: NSObject {
         audioTrack.isEnabled = true
         localAudioTrack = audioTrack
         localAudioSource = audioSource
-        
-        // #region agent log
-        DebugLog.write([
-            "location": "WebRTCService.swift:138",
-            "message": "setupLocalAudioTrack - audioTrack created",
-            "data": [
-                "trackId": audioTrack.trackId,
-                "isEnabled": audioTrack.isEnabled,
-                "kind": audioTrack.kind
-            ],
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "A"
-        ])
-        // #endregion
     }
     
     /// 新しいモニター接続を処理（カメラ側: SDP Offerを受け取ってAnswerを返す）
     func handleIncomingSession(sessionId: String, offer: RTCSessionDescription, monitorUserId: String? = nil) async throws {
         // #region agent log
-        print("[MioCam-Debug][H1] handleIncomingSession - sessionId=\(sessionId), delegate=\(String(describing: delegate))")
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "WebRTCService.swift:138", "message": "handleIncomingSession開始", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
         // #endregion
         let client = createPeerConnection(sessionId: sessionId)
         
@@ -178,45 +159,49 @@ class WebRTCService: NSObject {
                 client.setAudioSender(audioSender)
                 // デフォルトOFF: 明示的に許可されるまで音声を送信しない
                 audioSender.track = nil
-                
-                // #region agent log
-                DebugLog.write([
-                    "location": "WebRTCService.swift:164",
-                    "message": "handleIncomingSession - audioSender.track set to nil",
-                    "data": [
-                        "sessionId": sessionId,
-                        "audioSenderTrackIsNil": audioSender.track == nil,
-                        "localAudioTrackIsEnabled": localAudioTrack.isEnabled,
-                        "monitorUserId": monitorUserId ?? "nil"
-                    ],
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "B"
-                ])
-                // #endregion
             }
         }
         
         // Offerを設定
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "WebRTCService.swift:163", "message": "RemoteDescription設定前", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         try await client.peerConnection.setRemoteDescription(offer)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "J", "location": "WebRTCService.swift:163", "message": "RemoteDescription設定後", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         
         // Answerを生成
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:166", "message": "Answer生成前", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
         let answer = try await client.peerConnection.answer(for: constraints)
-        try await client.peerConnection.setLocalDescription(answer)
-        
         // #region agent log
-        print("[MioCam-Debug][H1] handleIncomingSession - Answer generated, calling delegate. delegate=\(String(describing: delegate))")
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:168", "message": "Answer生成完了", "data": ["sessionId": sessionId, "answerType": RTCSessionDescription.string(for: answer.type)], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
         // #endregion
+        try await client.peerConnection.setLocalDescription(answer)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:169", "message": "LocalDescription設定完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
+        
         delegate?.webRTCService(self, didGenerateAnswer: answer, for: sessionId)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "WebRTCService.swift:170", "message": "delegate呼び出し完了", "data": ["sessionId": sessionId, "delegateExists": delegate != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
     }
     
     // MARK: - Monitor Side (受信側)
     
     /// モニター側から接続を開始（SDP Offerを生成）
     func startConnection(sessionId: String) async throws {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "WebRTCService.swift:176", "message": "startConnection開始", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         let client = createPeerConnection(sessionId: sessionId)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "WebRTCService.swift:179", "message": "PeerConnection作成完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         
         // モニター側のローカルオーディオトラックを作成（プッシュ・トゥ・トーク用、初期状態は無効）
         if monitorLocalAudioTrack == nil {
@@ -235,6 +220,9 @@ class WebRTCService: NSObject {
         }
         
         // Offerを生成（音声受信を有効化）
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:196", "message": "Offer生成前", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         let constraints = RTCMediaConstraints(
             mandatoryConstraints: [
                 "OfferToReceiveAudio": "true",
@@ -243,20 +231,23 @@ class WebRTCService: NSObject {
             optionalConstraints: nil
         )
         let offer = try await client.peerConnection.offer(for: constraints)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:203", "message": "Offer生成完了", "data": ["sessionId": sessionId, "offerType": RTCSessionDescription.string(for: offer.type)], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         try await client.peerConnection.setLocalDescription(offer)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:206", "message": "LocalDescription設定完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         
         delegate?.webRTCService(self, didGenerateOffer: offer, for: sessionId)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "WebRTCService.swift:207", "message": "delegate呼び出し完了", "data": ["sessionId": sessionId, "delegateExists": delegate != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
     }
     
     /// SDP Answerを受け取って設定（モニター側）
     func handleAnswer(sessionId: String, answer: RTCSessionDescription) async throws {
-        // #region agent log
-        print("[MioCam-Debug][H2] WebRTCService.handleAnswer - looking for sessionId=\(sessionId), available clients=\(Array(clients.keys))")
-        // #endregion
         guard let client = clients[sessionId] else {
-            // #region agent log
-            print("[MioCam-Debug][H2] WebRTCService.handleAnswer - SESSION NOT FOUND! sessionId=\(sessionId) not in \(Array(clients.keys))")
-            // #endregion
             throw WebRTCError.sessionNotFound
         }
         
@@ -267,14 +258,16 @@ class WebRTCService: NSObject {
     
     /// ICE Candidateを追加
     func addICECandidate(sessionId: String, candidate: RTCIceCandidate) async throws {
-        // #region agent log
-        print("[MioCam-Debug][H2][H4] WebRTCService.addICECandidate - looking for sessionId=\(sessionId), available clients=\(Array(clients.keys))")
-        // #endregion
         guard let client = clients[sessionId] else {
-            // #region agent log
-            print("[MioCam-Debug][H2][H4] WebRTCService.addICECandidate - SESSION NOT FOUND! sessionId=\(sessionId)")
-            // #endregion
             throw WebRTCError.sessionNotFound
+        }
+        
+        // remote descriptionが設定されていない場合はエラーを無視（後で再試行される）
+        guard client.peerConnection.remoteDescription != nil else {
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "N", "location": "WebRTCService.swift:260", "message": "ICE candidate追加スキップ（remote description未設定）", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
+            return
         }
         
         try await client.peerConnection.add(candidate)
@@ -320,50 +313,11 @@ class WebRTCService: NSObject {
         guard let client = clients[sessionId],
               let audioSender = client.audioSender else {
             print("WebRTCService: setAudioEnabled - sessionId not found or audioSender is nil")
-            
-            // #region agent log
-            DebugLog.write([
-                "location": "WebRTCService.swift:289",
-                "message": "setAudioEnabled - GUARD FAILED",
-                "data": [
-                    "sessionId": sessionId,
-                    "enabled": enabled,
-                    "clientExists": clients[sessionId] != nil,
-                    "audioSenderExists": clients[sessionId]?.audioSender != nil
-                ],
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "C"
-            ])
-            // #endregion
             return
         }
         
-        let beforeTrackIsNil = audioSender.track == nil
         audioSender.track = enabled ? localAudioTrack : nil
-        let afterTrackIsNil = audioSender.track == nil
-        
         print("WebRTCService: setAudioEnabled - sessionId=\(sessionId), enabled=\(enabled)")
-        
-        // #region agent log
-        DebugLog.write([
-            "location": "WebRTCService.swift:293",
-            "message": "setAudioEnabled - track changed",
-            "data": [
-                "sessionId": sessionId,
-                "enabled": enabled,
-                "beforeTrackIsNil": beforeTrackIsNil,
-                "afterTrackIsNil": afterTrackIsNil,
-                "localAudioTrackIsEnabled": localAudioTrack?.isEnabled ?? false,
-                "localAudioTrackExists": localAudioTrack != nil
-            ],
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-            "sessionId": "debug-session",
-            "runId": "run1",
-            "hypothesisId": "D"
-        ])
-        // #endregion
     }
     
     /// 特定ユーザーの全セッションの音声を有効/無効化（カメラ側）

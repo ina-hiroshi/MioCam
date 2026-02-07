@@ -78,57 +78,16 @@ struct SignInWithAppleView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.mioPrimary.ignoresSafeArea())
-        .onAppear {
-            // #region agent log
-            DebugLog.write([
-                "sessionId": "debug-session",
-                "runId": "pre-fix",
-                "hypothesisId": "H3",
-                "location": "SignInWithAppleView.swift:onAppear",
-                "message": "Sign in view appeared",
-                "data": [:],
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-            ])
-            // #endregion
-        }
     }
     
     private func handleSignInResult(_ result: Result<ASAuthorization, Error>) {
         Task {
             switch result {
             case .success(let authorization):
-                // #region agent log
-                DebugLog.write([
-                    "sessionId": "debug-session",
-                    "runId": "pre-fix",
-                    "hypothesisId": "H2",
-                    "location": "SignInWithAppleView.swift:handleSignInResult",
-                    "message": "Sign in with Apple authorization succeeded",
-                    "data": [
-                        "credentialType": String(describing: type(of: authorization.credential))
-                    ],
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-                ])
-                // #endregion
                 await viewModel.signInWithApple(authorization: authorization)
             case .failure(let error):
                 let nsError = error as NSError
                 var message = error.localizedDescription
-                // #region agent log
-                DebugLog.write([
-                    "sessionId": "debug-session",
-                    "runId": "pre-fix",
-                    "hypothesisId": "H2",
-                    "location": "SignInWithAppleView.swift:handleSignInResult",
-                    "message": "Sign in with Apple authorization failed",
-                    "data": [
-                        "errorDomain": nsError.domain,
-                        "errorCode": nsError.code,
-                        "isASAuthorizationError": (error as? ASAuthorizationError) != nil
-                    ],
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-                ])
-                // #endregion
                 
                 // エラーコードに基づいて詳細なメッセージを追加
                 if let authError = error as? ASAuthorizationError {

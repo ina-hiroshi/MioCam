@@ -30,6 +30,9 @@ class SignalingService {
         pairingCode: String,
         offer: [String: Any]
     ) async throws -> String {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "SignalingService.swift:24", "message": "createSession開始", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         let sessionRef = db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)
         
@@ -43,18 +46,33 @@ class SignalingService {
             "createdAt": FieldValue.serverTimestamp()
         ]
         
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "SignalingService.swift:46", "message": "Firestore書き込み前", "data": ["cameraId": cameraId, "sessionId": sessionId, "status": SessionModel.SessionStatus.waiting.rawValue], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         try await sessionRef.setData(sessionData)
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "SignalingService.swift:46", "message": "Firestore書き込み後", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         return sessionId
     }
     
     /// セッションのSDP Answerを書き込み（カメラ側）
     func setAnswer(cameraId: String, sessionId: String, answer: [String: Any]) async throws {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "SignalingService.swift:51", "message": "setAnswer開始", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "SignalingService.swift:52", "message": "Firestore更新前", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         try await db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)
             .updateData([
                 "answer": answer,
                 "status": SessionModel.SessionStatus.connected.rawValue
             ])
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "K", "location": "SignalingService.swift:57", "message": "Firestore更新後", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
     }
     
     /// セッションステータスを更新
@@ -84,12 +102,65 @@ class SignalingService {
     
     // MARK: - セッション監視
     
+    /// 既存のwaitingセッションを取得（カメラ側: 監視開始前に作成されたセッションに対応）
+    func getWaitingSessions(cameraId: String) async throws -> [SessionModel] {
+        let snapshot = try await db.collection("cameras").document(cameraId)
+            .collection("sessions")
+            .whereField("status", isEqualTo: SessionModel.SessionStatus.waiting.rawValue)
+            .getDocuments()
+        
+        return snapshot.documents.compactMap { doc -> SessionModel? in
+            let data = doc.data()
+            return SessionModel(from: data, documentId: doc.documentID)
+        }
+    }
+    
+    /// 接続済みセッションを監視（カメラ側: 切断検知用）
+    func observeConnectedSessions(cameraId: String, completion: @escaping (Result<[SessionModel], Error>) -> Void) -> ListenerRegistration {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "Q", "location": "SignalingService.swift:113", "message": "observeConnectedSessions設定", "data": ["cameraId": cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
+        let listener = db.collection("cameras").document(cameraId)
+            .collection("sessions")
+            .whereField("status", isEqualTo: SessionModel.SessionStatus.connected.rawValue)
+            .addSnapshotListener { snapshot, error in
+                // #region agent log
+                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "Q", "location": "SignalingService.swift:118", "message": "接続済みセッション監視コールバック", "data": ["cameraId": cameraId, "hasError": error != nil, "hasSnapshot": snapshot != nil, "docCount": snapshot?.documents.count ?? 0], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                // #endregion
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                
+                guard let snapshot = snapshot else {
+                    completion(.success([]))
+                    return
+                }
+                
+                let sessions = snapshot.documents.compactMap { doc -> SessionModel? in
+                    let data = doc.data()
+                    return SessionModel(from: data, documentId: doc.documentID)
+                }
+                completion(.success(sessions))
+            }
+        
+        let key = "\(cameraId)_connected"
+        sessionListeners[key] = listener
+        return listener
+    }
+    
     /// カメラの新規セッションを監視（カメラ側）
     func observeNewSessions(cameraId: String, completion: @escaping (Result<[SessionModel], Error>) -> Void) -> ListenerRegistration {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "H", "location": "SignalingService.swift:88", "message": "observeNewSessions設定", "data": ["cameraId": cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         let listener = db.collection("cameras").document(cameraId)
             .collection("sessions")
             .whereField("status", isEqualTo: SessionModel.SessionStatus.waiting.rawValue)
             .addSnapshotListener { snapshot, error in
+                // #region agent log
+                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "H", "location": "SignalingService.swift:92", "message": "セッション監視コールバック", "data": ["cameraId": cameraId, "hasError": error != nil, "hasSnapshot": snapshot != nil, "docCount": snapshot?.documents.count ?? 0], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                // #endregion
                 if let error = error {
                     completion(.failure(error))
                     return
@@ -102,9 +173,7 @@ class SignalingService {
                 
                 let sessions = snapshot.documents.compactMap { doc -> SessionModel? in
                     // doc.data()から直接SessionModelを初期化して、offerを含める
-                    guard let data = doc.data() as? [String: Any] else {
-                        return nil
-                    }
+                    let data = doc.data()
                     return SessionModel(from: data, documentId: doc.documentID)
                 }
                 completion(.success(sessions))
@@ -114,11 +183,31 @@ class SignalingService {
         return listener
     }
     
+    /// セッションのAnswerを取得（モニター側: 既存のAnswerを確認するため）
+    func getAnswer(cameraId: String, sessionId: String) async throws -> [String: Any]? {
+        let doc = try await db.collection("cameras").document(cameraId)
+            .collection("sessions").document(sessionId)
+            .getDocument()
+        
+        guard let data = doc.data(),
+              let answer = data["answer"] as? [String: Any] else {
+            return nil
+        }
+        
+        return answer
+    }
+    
     /// セッションのAnswerを監視（モニター側）
     func observeAnswer(cameraId: String, sessionId: String, completion: @escaping (Result<[String: Any]?, Error>) -> Void) -> ListenerRegistration {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "SignalingService.swift:116", "message": "observeAnswer設定", "data": ["cameraId": cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         let listener = db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)
             .addSnapshotListener { snapshot, error in
+                // #region agent log
+                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "SignalingService.swift:119", "message": "Answer監視コールバック", "data": ["cameraId": cameraId, "sessionId": sessionId, "hasError": error != nil, "hasSnapshot": snapshot != nil, "hasAnswer": (snapshot?.data()?["answer"] as? [String: Any]) != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                // #endregion
                 if let error = error {
                     completion(.failure(error))
                     return

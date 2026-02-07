@@ -35,19 +35,6 @@ class AuthenticationService: NSObject, ObservableObject {
             Task { @MainActor in
                 self?.currentUser = user
                 self?.isAuthenticated = user != nil
-                // #region agent log
-                DebugLog.write([
-                    "sessionId": "debug-session",
-                    "runId": "pre-fix",
-                    "hypothesisId": "H1",
-                    "location": "AuthenticationService.swift:setupAuthStateListener",
-                    "message": "Auth state changed",
-                    "data": [
-                        "hasUser": user != nil
-                    ],
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-                ])
-                // #endregion
             }
         }
     }
@@ -57,22 +44,6 @@ class AuthenticationService: NSObject, ObservableObject {
         let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential
         let identityToken = appleIDCredential?.identityToken
         let idTokenString = identityToken.flatMap { String(data: $0, encoding: .utf8) }
-        
-        // #region agent log
-        DebugLog.write([
-            "sessionId": "debug-session",
-            "runId": "pre-fix",
-            "hypothesisId": "H2",
-            "location": "AuthenticationService.swift:signInWithApple",
-            "message": "Apple credential extraction",
-            "data": [
-                "hasAppleIDCredential": appleIDCredential != nil,
-                "hasIdentityToken": identityToken != nil,
-                "idTokenLength": idTokenString?.count ?? 0
-            ],
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-        ])
-        // #endregion
         
         guard let appleIDCredential = appleIDCredential,
               let idTokenString = idTokenString else {
@@ -121,6 +92,12 @@ enum DebugLog {
         
         let lineWithNewline = line + "\n"
         
+        // ディレクトリが存在しない場合は作成
+        let directory = (logPath as NSString).deletingLastPathComponent
+        if !FileManager.default.fileExists(atPath: directory) {
+            try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true, attributes: nil)
+        }
+        
         if let handle = FileHandle(forWritingAtPath: logPath) {
             handle.seekToEndOfFile()
             if let lineData = lineWithNewline.data(using: .utf8) {
@@ -128,7 +105,13 @@ enum DebugLog {
             }
             try? handle.close()
         } else {
-            try? lineWithNewline.write(toFile: logPath, atomically: true, encoding: .utf8)
+            // ファイルが存在しない場合は作成
+            if let lineData = lineWithNewline.data(using: .utf8) {
+                FileManager.default.createFile(atPath: logPath, contents: lineData, attributes: nil)
+            } else {
+                // フォールバック: write(toFile:)を使用
+                try? lineWithNewline.write(toFile: logPath, atomically: true, encoding: .utf8)
+            }
         }
     }
 }

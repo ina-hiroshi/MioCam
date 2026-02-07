@@ -120,38 +120,9 @@ struct CameraSettingsSheet: View {
                             cameraName = viewModel.deviceName
                         }
                         .onSubmit {
-                            // #region agent log
-                            DebugLog.write([
-                                "location": "CameraSettingsSheet.swift:122",
-                                "message": "onSubmit - cameraName changed",
-                                "data": [
-                                    "cameraName": cameraName,
-                                    "viewModelDeviceName": viewModel.deviceName,
-                                    "cameraId": viewModel.cameraId ?? "nil",
-                                    "isEmpty": cameraName.isEmpty
-                                ],
-                                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "A"
-                            ])
-                            // #endregion
                             guard !cameraName.isEmpty else { return }
                             guard viewModel.cameraId != nil else {
                                 showNameUpdateError = true
-                                // #region agent log
-                                DebugLog.write([
-                                    "location": "CameraSettingsSheet.swift:125",
-                                    "message": "onSubmit - cameraId is nil",
-                                    "data": [
-                                        "cameraName": cameraName
-                                    ],
-                                    "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                                    "sessionId": "debug-session",
-                                    "runId": "run1",
-                                    "hypothesisId": "B"
-                                ])
-                                // #endregion
                                 return
                             }
                             Task {

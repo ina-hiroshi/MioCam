@@ -29,39 +29,12 @@ class AuthViewModel: ObservableObject {
     func signInWithApple(authorization: ASAuthorization) async {
         isLoading = true
         errorMessage = nil
-        // #region agent log
-        DebugLog.write([
-            "sessionId": "debug-session",
-            "runId": "pre-fix",
-            "hypothesisId": "H2",
-            "location": "AuthViewModel.swift:signInWithApple",
-            "message": "Sign in with Apple started",
-            "data": [
-                "isLoading": isLoading
-            ],
-            "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-        ])
-        // #endregion
         
         do {
             try await authService.signInWithApple(authorization: authorization)
         } catch {
             let nsError = error as NSError
             var message = error.localizedDescription
-            // #region agent log
-            DebugLog.write([
-                "sessionId": "debug-session",
-                "runId": "pre-fix",
-                "hypothesisId": "H2",
-                "location": "AuthViewModel.swift:signInWithApple",
-                "message": "Sign in with Apple failed",
-                "data": [
-                    "errorDomain": nsError.domain,
-                    "errorCode": nsError.code
-                ],
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-            ])
-            // #endregion
             
             // エラーの種類に応じて詳細なメッセージを設定
             if nsError.domain == "AuthenticationService" {

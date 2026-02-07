@@ -33,8 +33,11 @@ struct LiveView: View {
     @State private var answerListener: ListenerRegistration?
     @State private var iceCandidateListener: ListenerRegistration?
     @State private var sessionListener: ListenerRegistration?
+    @State private var cameraListener: ListenerRegistration?
     @State private var originalIdleTimerDisabled: Bool = false
     @State private var isMicActive = false
+    @State private var showOfflineAlert = false
+    @State private var offlineMessage: String?
     
     private let webRTCService = WebRTCService.shared
     private let signalingService = SignalingService.shared
@@ -157,6 +160,15 @@ struct LiveView: View {
                 dismiss()
             }
             .environmentObject(authService)
+        }
+        .alert("接続エラー", isPresented: $showOfflineAlert) {
+            Button("OK") {
+                dismiss()
+            }
+        } message: {
+            if let message = offlineMessage {
+                Text(message)
+            }
         }
     }
     
@@ -361,51 +373,28 @@ struct LiveView: View {
     }
     
     private func startConnection() async {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "A", "location": "LiveView.swift:375", "message": "startConnection開始", "data": ["cameraId": cameraLink.cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         guard authService.currentUser?.uid != nil else {
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "A", "location": "LiveView.swift:377", "message": "認証エラー", "data": [:], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             connectionError = "認証が必要です"
             isConnecting = false
             return
         }
         
-        // #region agent log
-        let logData: [String: Any] = [
-            "isReconnecting": isReconnecting,
-            "audioTrackExists": audioTrack != nil,
-            "audioTrackIsEnabled": audioTrack?.isEnabled ?? false
-        ]
-        let logPath = "/Users/inahiroshi/開発/MioCam/.cursor/debug.log"
-        if let logFile = FileHandle(forWritingAtPath: logPath) {
-            logFile.seekToEndOfFile()
-            let logEntry = try! JSONSerialization.data(withJSONObject: [
-                "location": "LiveView.swift:362",
-                "message": "startConnection - BEGIN",
-                "data": logData,
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "C"
-            ])
-            logFile.write(logEntry)
-            logFile.write("\n".data(using: .utf8)!)
-            logFile.closeFile()
-        } else {
-            FileManager.default.createFile(atPath: logPath, contents: nil)
-            if let logFile = FileHandle(forWritingAtPath: logPath) {
-                let logEntry = try! JSONSerialization.data(withJSONObject: [
-                    "location": "LiveView.swift:362",
-                    "message": "startConnection - BEGIN",
-                    "data": logData,
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "C"
-                ])
-                logFile.write(logEntry)
-                logFile.write("\n".data(using: .utf8)!)
-                logFile.closeFile()
-            }
+        // 前回のセッションをクリーンアップ（再接続時）
+        if let oldSessionId = sessionId {
+            answerListener?.remove()
+            answerListener = nil
+            iceCandidateListener?.remove()
+            iceCandidateListener = nil
+            sessionListener?.remove()
+            sessionListener = nil
+            webRTCService.closeSession(sessionId: oldSessionId)
         }
-        // #endregion
         
         isConnecting = true
         connectionError = nil
@@ -413,26 +402,71 @@ struct LiveView: View {
         do {
             // カメラ情報を取得
             guard let camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraLink.cameraId) else {
+                // #region agent log
+                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "B", "location": "LiveView.swift:398", "message": "カメラ情報取得失敗", "data": ["cameraId": cameraLink.cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                // #endregion
                 connectionError = "カメラが見つかりません"
                 isConnecting = false
                 return
             }
             
+            // カメラがオフラインの場合は接続を試みない
+            guard camera.isOnline else {
+                // #region agent log
+                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "C", "location": "LiveView.swift:405", "message": "カメラオフライン", "data": ["isOnline": camera.isOnline], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                // #endregion
+                connectionError = "カメラがオフラインです"
+                isConnecting = false
+                offlineMessage = "カメラがオフラインです"
+                showOfflineAlert = true
+                return
+            }
+            
             cameraInfo = camera
+            
+            // カメラの状態をリアルタイム監視開始
+            cameraListener = CameraFirestoreService.shared.observeCamera(
+                cameraId: cameraLink.cameraId
+            ) { [self] result in
+                Task { @MainActor in
+                    switch result {
+                    case .success(let updatedCamera):
+                        if let updatedCamera = updatedCamera {
+                            // 既に接続済みの状態でオフラインになった場合のみアラートを表示
+                            if let currentCamera = self.cameraInfo,
+                               currentCamera.isOnline && !updatedCamera.isOnline {
+                                self.offlineMessage = "カメラがオフラインになりました"
+                                self.showOfflineAlert = true
+                            }
+                            self.cameraInfo = updatedCamera
+                        }
+                    case .failure(let error):
+                        print("カメラ監視エラー: \(error.localizedDescription)")
+                    }
+                }
+            }
             
             // セッションIDを生成（UUID）
             let newSessionId = UUID().uuidString
             sessionId = newSessionId
-            
             // #region agent log
-            print("[MioCam-Debug][H2] startConnection - UUID sessionId=\(newSessionId)")
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:439", "message": "セッションID生成", "data": ["sessionId": newSessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
             // #endregion
             
             // 1. WebRTC接続を開始してOfferを生成
             // Offerはdelegate経由で受け取る（handleOfferGenerated）
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:443", "message": "WebRTC接続開始前", "data": ["sessionId": newSessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             try await webRTCService.startConnection(sessionId: newSessionId)
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:443", "message": "WebRTC接続開始後", "data": ["sessionId": newSessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             
         } catch {
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "D", "location": "LiveView.swift:446", "message": "startConnectionエラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             connectionError = error.localizedDescription
             isConnecting = false
         }
@@ -441,9 +475,23 @@ struct LiveView: View {
     // MARK: - WebRTC Delegate Handlers
     
     func handleOfferGenerated(_ offer: RTCSessionDescription, sessionId: String) async {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "LiveView.swift:453", "message": "handleOfferGenerated開始", "data": ["sessionId": sessionId, "expectedSessionId": self.sessionId ?? "nil"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         guard let monitorUserId = authService.currentUser?.uid else {
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "LiveView.swift:455", "message": "認証エラー", "data": [:], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             connectionError = "認証が必要です"
             isConnecting = false
+            return
+        }
+        
+        // セッションIDが一致しているか確認
+        guard sessionId == self.sessionId else {
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "E", "location": "LiveView.swift:461", "message": "セッションID不一致", "data": ["received": sessionId, "expected": self.sessionId ?? "nil"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             return
         }
         
@@ -472,7 +520,10 @@ struct LiveView: View {
             let monitorDeviceName = UIDevice.current.name
             
             // 2. Firestoreにセッション + Offerを書き込み（UUIDをドキュメントIDとして使用）
-            let createdSessionId = try await signalingService.createSession(
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "LiveView.swift:490", "message": "Firestoreセッション作成前", "data": ["cameraId": cameraLink.cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
+            _ = try await signalingService.createSession(
                 cameraId: cameraLink.cameraId,
                 sessionId: sessionId,
                 monitorUserId: monitorUserId,
@@ -481,12 +532,27 @@ struct LiveView: View {
                 pairingCode: camera.pairingCode,
                 offer: offer.toDict()
             )
-            
             // #region agent log
-            print("[MioCam-Debug][H2] handleOfferGenerated - UUID sessionId=\(sessionId), Firestore createdSessionId=\(createdSessionId), MISMATCH=\(sessionId != createdSessionId)")
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "LiveView.swift:498", "message": "Firestoreセッション作成後", "data": ["cameraId": cameraLink.cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
             // #endregion
             
-            // 3. Answerを監視
+            // 3. Answerを監視（既存のAnswerも即座に確認）
+            Task { @MainActor in
+                do {
+                    // 既存のAnswerを確認（監視開始前に書き込まれたAnswerに対応）
+                    if let existingAnswer = try await signalingService.getAnswer(cameraId: cameraLink.cameraId, sessionId: sessionId) {
+                        // #region agent log
+                        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:501", "message": "既存Answer検出", "data": ["cameraId": cameraLink.cameraId, "sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                        // #endregion
+                        await handleAnswerReceived(.success(existingAnswer), sessionId: sessionId)
+                    }
+                } catch {
+                    // #region agent log
+                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:507", "message": "既存Answer取得エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                    // #endregion
+                }
+            }
+            
             answerListener = signalingService.observeAnswer(
                 cameraId: cameraLink.cameraId,
                 sessionId: sessionId
@@ -517,42 +583,52 @@ struct LiveView: View {
             }
             
         } catch {
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "F", "location": "LiveView.swift:530", "message": "handleOfferGeneratedエラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             connectionError = error.localizedDescription
             isConnecting = false
         }
     }
     
     func handleAnswerReceived(_ result: Result<[String: Any]?, Error>, sessionId: String) async {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:536", "message": "handleAnswerReceived呼び出し", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
+        // セッションIDが一致しているか確認
+        guard sessionId == self.sessionId else {
+            return
+        }
+        
         switch result {
         case .success(let answerDict):
             guard let answerDict = answerDict,
                   let answer = RTCSessionDescription.from(dict: answerDict) else {
                 // #region agent log
-                print("[MioCam-Debug][H1][H2] handleAnswerReceived - Answer is nil/unparseable, still waiting. sessionId=\(sessionId)")
+                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:545", "message": "Answer未受信", "data": ["answerDict": answerDict != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
                 // #endregion
                 // Answerがまだない場合は待機
                 return
             }
             
             // #region agent log
-            print("[MioCam-Debug][H2] handleAnswerReceived - Answer received! sessionId=\(sessionId), answerType=\(answerDict["type"] ?? "nil")")
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:550", "message": "Answer受信成功", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
             // #endregion
-            
             do {
                 // 5. Answerを設定
                 try await webRTCService.handleAnswer(sessionId: sessionId, answer: answer)
-                // #region agent log
-                print("[MioCam-Debug][H2] handleAnswerReceived - Answer set successfully for sessionId=\(sessionId)")
-                // #endregion
             } catch {
                 // #region agent log
-                print("[MioCam-Debug][H2] handleAnswerReceived - FAILED to set answer: \(error), sessionId=\(sessionId)")
+                DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:554", "message": "Answer設定エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
                 // #endregion
                 connectionError = "Answerの設定に失敗しました: \(error.localizedDescription)"
                 isConnecting = false
             }
             
         case .failure(let error):
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "G", "location": "LiveView.swift:559", "message": "Answer受信エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             connectionError = "Answerの受信に失敗しました: \(error.localizedDescription)"
             isConnecting = false
         }
@@ -576,7 +652,10 @@ struct LiveView: View {
                 do {
                     try await webRTCService.addICECandidate(sessionId: sessionId, candidate: iceCandidate)
                 } catch {
-                    print("ICE Candidate追加エラー: \(error.localizedDescription)")
+                    // remote descriptionが設定される前のエラーは無視（後で再試行される）
+                    if !error.localizedDescription.contains("remote description was null") {
+                        print("ICE Candidate追加エラー: \(error.localizedDescription)")
+                    }
                 }
             }
             
@@ -589,35 +668,15 @@ struct LiveView: View {
         switch result {
         case .success(let sessionData):
             guard let sessionData = sessionData,
-                  let isAudioEnabled = sessionData["isAudioEnabled"] as? Bool,
                   let audioTrack = audioTrack else {
                 return
             }
             
+            // isAudioEnabledがnilの場合はfalseとして扱う（デフォルトOFF）
+            let isAudioEnabled = sessionData["isAudioEnabled"] as? Bool ?? false
+            
             // カメラ側の音声設定に応じてリモートオーディオトラックのisEnabledを更新
             audioTrack.isEnabled = isAudioEnabled
-            
-            // #region agent log
-            let logPath = "/Users/inahiroshi/開発/MioCam/.cursor/debug.log"
-            if let logFile = FileHandle(forWritingAtPath: logPath) {
-                logFile.seekToEndOfFile()
-                let logEntry = try! JSONSerialization.data(withJSONObject: [
-                    "location": "LiveView.swift:handleSessionUpdate",
-                    "message": "Session audio setting updated",
-                    "data": [
-                        "isAudioEnabled": isAudioEnabled,
-                        "trackId": audioTrack.trackId
-                    ],
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "D"
-                ])
-                logFile.write(logEntry)
-                logFile.write("\n".data(using: .utf8)!)
-                logFile.closeFile()
-            }
-            // #endregion
             
         case .failure(let error):
             print("セッション監視エラー: \(error.localizedDescription)")
@@ -643,6 +702,9 @@ struct LiveView: View {
     }
     
     func handleRemoteVideoTrack(_ track: RTCVideoTrack) {
+        // #region agent log
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "L", "location": "LiveView.swift:628", "message": "リモートビデオトラック受信", "data": ["trackId": track.trackId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+        // #endregion
         // リモートビデオトラックを受信
         videoTrack = track
         isConnecting = false
@@ -651,101 +713,34 @@ struct LiveView: View {
     
     func handleRemoteAudioTrack(_ track: RTCAudioTrack) {
         // リモートオーディオトラックを受信（カメラ側からの音声）
-        // #region agent log
-        let beforeIsEnabled = track.isEnabled
-        let logData: [String: Any] = [
-            "beforeIsEnabled": beforeIsEnabled,
-            "trackId": track.trackId,
-            "kind": track.kind
-        ]
-        let logPath = "/Users/inahiroshi/開発/MioCam/.cursor/debug.log"
-        if let logFile = FileHandle(forWritingAtPath: logPath) {
-            logFile.seekToEndOfFile()
-            let logEntry = try! JSONSerialization.data(withJSONObject: [
-                "location": "LiveView.swift:584",
-                "message": "handleRemoteAudioTrack - BEFORE setting isEnabled",
-                "data": logData,
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A"
-            ])
-            logFile.write(logEntry)
-            logFile.write("\n".data(using: .utf8)!)
-            logFile.closeFile()
-        } else {
-            FileManager.default.createFile(atPath: logPath, contents: nil)
-            if let logFile = FileHandle(forWritingAtPath: logPath) {
-                let logEntry = try! JSONSerialization.data(withJSONObject: [
-                    "location": "LiveView.swift:584",
-                    "message": "handleRemoteAudioTrack - BEFORE setting isEnabled",
-                    "data": logData,
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "A"
-                ])
-                logFile.write(logEntry)
-                logFile.write("\n".data(using: .utf8)!)
-                logFile.closeFile()
-            }
-        }
-        // #endregion
-        
         audioTrack = track
         
-        // デフォルトで音声はOFF（明示的にOFFにする）
-        track.isEnabled = false
-        
-        // #region agent log
-        let afterIsEnabled = track.isEnabled
-        let logData2: [String: Any] = [
-            "beforeIsEnabled": beforeIsEnabled,
-            "afterIsEnabled": afterIsEnabled,
-            "trackId": track.trackId
-        ]
-        if let logFile = FileHandle(forWritingAtPath: logPath) {
-            logFile.seekToEndOfFile()
-            let logEntry = try! JSONSerialization.data(withJSONObject: [
-                "location": "LiveView.swift:610",
-                "message": "handleRemoteAudioTrack - AFTER setting isEnabled=false",
-                "data": logData2,
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A"
-            ])
-            logFile.write(logEntry)
-            logFile.write("\n".data(using: .utf8)!)
-            logFile.closeFile()
-        } else {
-            FileManager.default.createFile(atPath: logPath, contents: nil)
-            if let logFile = FileHandle(forWritingAtPath: logPath) {
-                let logEntry = try! JSONSerialization.data(withJSONObject: [
-                    "location": "LiveView.swift:610",
-                    "message": "handleRemoteAudioTrack - AFTER setting isEnabled=false",
-                    "data": logData2,
-                    "timestamp": Int(Date().timeIntervalSince1970 * 1000),
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "A"
-                ])
-                logFile.write(logEntry)
-                logFile.write("\n".data(using: .utf8)!)
-                logFile.closeFile()
+        // セッションドキュメントから現在のisAudioEnabledを取得して設定
+        Task { @MainActor in
+            guard let sessionId = sessionId else { return }
+            
+            do {
+                let sessionDoc = try await FirestoreService.shared.db
+                    .collection("cameras").document(cameraLink.cameraId)
+                    .collection("sessions").document(sessionId)
+                    .getDocument()
+                
+                if let data = sessionDoc.data(),
+                   let isAudioEnabled = data["isAudioEnabled"] as? Bool {
+                    // FirestoreのisAudioEnabledに基づいて設定
+                    track.isEnabled = isAudioEnabled
+                } else {
+                    // isAudioEnabledがnilの場合はfalseとして扱う（デフォルトOFF）
+                    track.isEnabled = false
+                }
+            } catch {
+                // エラーの場合はデフォルトOFF
+                track.isEnabled = false
             }
         }
-        // #endregion
         
         // WebRTCがオーディオルートを変更している可能性があるため、スピーカー出力を強制
         backgroundAudioService.ensureSpeakerOutput()
-        
-        // #region agent log
-        let audioSession = AVAudioSession.sharedInstance()
-        let outputs = audioSession.currentRoute.outputs
-        let outputNames = outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ", ")
-        print("[MioCam-AudioDebug][HC][HD] handleRemoteAudioTrack - track.isEnabled=\(track.isEnabled), category=\(audioSession.category.rawValue), mode=\(audioSession.mode.rawValue), outputs=[\(outputNames)]")
-        // #endregion
     }
     
     // MARK: - Push-to-Talk
@@ -754,43 +749,36 @@ struct LiveView: View {
         guard let sessionId = sessionId else { return }
         isMicActive = true
         webRTCService.setMonitorMicEnabled(sessionId: sessionId, enabled: true)
-        
-        // #region agent log
-        let audioSession = AVAudioSession.sharedInstance()
-        let outputs = audioSession.currentRoute.outputs
-        let outputNames = outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ", ")
-        print("[MioCam-AudioDebug][HE] enableMic - category=\(audioSession.category.rawValue), mode=\(audioSession.mode.rawValue), outputs=[\(outputNames)]")
-        // #endregion
     }
     
     private func disableMic() {
         guard let sessionId = sessionId else { return }
         isMicActive = false
         webRTCService.setMonitorMicEnabled(sessionId: sessionId, enabled: false)
-        
-        // #region agent log
-        let audioSession = AVAudioSession.sharedInstance()
-        let outputs = audioSession.currentRoute.outputs
-        let outputNames = outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ", ")
-        print("[MioCam-AudioDebug][HE] disableMic - category=\(audioSession.category.rawValue), mode=\(audioSession.mode.rawValue), outputs=[\(outputNames)]")
-        // #endregion
     }
     
     func handleConnectionStateChange(_ state: WebRTCConnectionState, sessionId: String) {
         // #region agent log
-        let audioSession = AVAudioSession.sharedInstance()
-        let outputs = audioSession.currentRoute.outputs
-        let outputNames = outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ", ")
-        print("[MioCam-AudioDebug][HC] handleConnectionStateChange - state=\(state), category=\(audioSession.category.rawValue), mode=\(audioSession.mode.rawValue), outputs=[\(outputNames)]")
+        DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "M", "location": "LiveView.swift:681", "message": "接続状態変更", "data": ["sessionId": sessionId, "state": "\(state)"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
         // #endregion
+        // セッションIDが一致しているか確認
+        guard sessionId == self.sessionId else {
+            return
+        }
         
         switch state {
         case .connected:
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "M", "location": "LiveView.swift:688", "message": "接続完了", "data": ["sessionId": sessionId, "hasVideoTrack": videoTrack != nil], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             isConnecting = false
             connectionError = nil
             // WebRTC接続完了後にスピーカー出力を確実にする
             backgroundAudioService.ensureSpeakerOutput()
         case .disconnected, .failed, .closed:
+            // #region agent log
+            DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "M", "location": "LiveView.swift:694", "message": "接続切断", "data": ["sessionId": sessionId, "state": "\(state)"], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+            // #endregion
             isConnecting = false
             if connectionError == nil {
                 connectionError = "接続が切断されました"
@@ -817,10 +805,40 @@ struct LiveView: View {
         iceCandidateListener = nil
         sessionListener?.remove()
         sessionListener = nil
+        cameraListener?.remove()
+        cameraListener = nil
         
         // WebRTCセッションを終了
         if let sessionId = sessionId {
             webRTCService.closeSession(sessionId: sessionId)
+            
+            // Firestoreのセッションを削除（カメラ側のデバイス数更新を即座に反映）
+            Task {
+                do {
+                    // #region agent log
+                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:813", "message": "セッション切断処理開始", "data": ["sessionId": sessionId, "cameraId": cameraLink.cameraId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                    // #endregion
+                    // まずセッションのステータスをdisconnectedに更新（カメラ側が即座に検知できるように）
+                    try await signalingService.updateSessionStatus(
+                        cameraId: cameraLink.cameraId,
+                        sessionId: sessionId,
+                        status: .disconnected
+                    )
+                    // #region agent log
+                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:820", "message": "セッションステータス更新完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                    // #endregion
+                    // その後、セッションを削除
+                    try await signalingService.deleteSession(cameraId: cameraLink.cameraId, sessionId: sessionId)
+                    // #region agent log
+                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:824", "message": "セッション削除完了", "data": ["sessionId": sessionId], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                    // #endregion
+                } catch {
+                    // #region agent log
+                    DebugLog.write(["sessionId": "debug-session", "runId": "run1", "hypothesisId": "P", "location": "LiveView.swift:826", "message": "セッション削除エラー", "data": ["error": error.localizedDescription], "timestamp": Int64(Date().timeIntervalSince1970 * 1000)])
+                    // #endregion
+                    print("セッション削除エラー: \(error.localizedDescription)")
+                }
+            }
         }
         
         // モニター側のAVAudioSession設定を解除

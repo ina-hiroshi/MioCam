@@ -14,6 +14,9 @@ struct BlackoutView: View {
     @ObservedObject var viewModel: CameraViewModel
     @Environment(\.dismiss) private var dismiss
     
+    /// カメラ停止時のコールバック（CameraModeViewで処理）
+    var onStopCamera: (() -> Void)?
+    
     @State private var showSettings = false
     @State private var originalBrightness: CGFloat = 0.5
     
@@ -94,15 +97,10 @@ struct BlackoutView: View {
         .sheet(isPresented: $showSettings) {
             CameraSettingsSheet(viewModel: viewModel) {
                 // カメラ停止時の処理
-                dismiss()
+                // CameraModeViewのコールバックを呼ぶ（shouldDismissToRoleSelection等を設定）
+                onStopCamera?()
             }
             .environmentObject(authService)
-        }
-        // モニター接続が0になったらQRコード画面に戻る
-        .onChange(of: viewModel.connectedMonitorCount) { newValue in
-            if newValue == 0 {
-                dismiss()
-            }
         }
         }
     }
@@ -158,6 +156,6 @@ struct BlackoutView: View {
 }
 
 #Preview {
-    BlackoutView(viewModel: CameraViewModel())
+    BlackoutView(viewModel: CameraViewModel(), onStopCamera: nil)
         .environmentObject(AuthenticationService.shared)
 }

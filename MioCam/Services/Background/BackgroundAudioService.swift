@@ -74,18 +74,12 @@ class BackgroundAudioService {
         try audioSession.setCategory(
             .playAndRecord,
             mode: .videoChat,
-            options: [.defaultToSpeaker, .allowBluetooth, .mixWithOthers]
+            options: [.defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers]
         )
         try audioSession.setActive(true)
         
         // 明示的にスピーカー出力を強制（WebRTCによる上書き対策）
         try audioSession.overrideOutputAudioPort(.speaker)
-        
-        // #region agent log
-        let outputs = audioSession.currentRoute.outputs
-        let outputNames = outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ", ")
-        print("[MioCam-AudioDebug][HA][HB] configureAudioSession DONE - category=\(audioSession.category.rawValue), mode=\(audioSession.mode.rawValue), outputs=[\(outputNames)]")
-        // #endregion
     }
     
     /// スピーカー出力を強制する（WebRTCがオーディオルートを変更した場合に呼び出す）
@@ -93,12 +87,6 @@ class BackgroundAudioService {
         do {
             let audioSession = AVAudioSession.sharedInstance()
             try audioSession.overrideOutputAudioPort(.speaker)
-            
-            // #region agent log
-            let outputs = audioSession.currentRoute.outputs
-            let outputNames = outputs.map { "\($0.portName)(\($0.portType.rawValue))" }.joined(separator: ", ")
-            print("[MioCam-AudioDebug][FIX] ensureSpeakerOutput - outputs=[\(outputNames)]")
-            // #endregion
         } catch {
             print("BackgroundAudioService: スピーカー出力強制エラー - \(error.localizedDescription)")
         }
