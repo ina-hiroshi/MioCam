@@ -1,0 +1,152 @@
+{
+  "images" : [
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "40x40",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "44x44",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "46x46",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "50x50",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "51x51",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "54x54",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "55x55",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "58x58",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "60x60",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "80x80",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "88x88",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "100x100",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "102x102",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "108x108",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "116x116",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "120x120",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "172x172",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "196x196",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "216x216",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "234x234",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "258x258",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "284x284",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "300x300",
+      "scale" : "2x"
+    },
+    {
+      "idiom" : "watch",
+      "role" : "appLauncher",
+      "size" : "1024x1024",
+      "scale" : "1x"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

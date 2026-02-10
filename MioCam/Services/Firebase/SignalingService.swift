@@ -14,6 +14,7 @@ class SignalingService {
     
     private let db = FirestoreService.shared.db
     private var sessionListeners: [String: ListenerRegistration] = [:]
+    private var answerListeners: [String: ListenerRegistration] = [:]
     private var iceCandidateListeners: [String: ListenerRegistration] = [:]
     
     private init() {}
@@ -28,12 +29,13 @@ class SignalingService {
         monitorDeviceId: String,
         monitorDeviceName: String,
         pairingCode: String,
-        offer: [String: Any]
+        offer: [String: Any],
+        displayName: String? = nil
     ) async throws -> String {
         let sessionRef = db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)
         
-        let sessionData: [String: Any] = [
+        var sessionData: [String: Any] = [
             "monitorUserId": monitorUserId,
             "monitorDeviceId": monitorDeviceId,
             "monitorDeviceName": monitorDeviceName,
@@ -42,6 +44,11 @@ class SignalingService {
             "status": SessionModel.SessionStatus.waiting.rawValue,
             "createdAt": FieldValue.serverTimestamp()
         ]
+        
+        // displayNameが提供されている場合は追加
+        if let displayName = displayName, !displayName.isEmpty {
+            sessionData["displayName"] = displayName
+        }
         
         try await sessionRef.setData(sessionData)
         return sessionId
@@ -82,6 +89,30 @@ class SignalingService {
             .delete()
     }
     
+    /// 同じmonitorUserIdの既存セッションを削除（現在のセッションIDを除く）
+    func deleteExistingSessionsForUser(cameraId: String, monitorUserId: String, excludeSessionId: String) async throws {
+        let snapshot = try await db.collection("cameras").document(cameraId)
+            .collection("sessions")
+            .whereField("monitorUserId", isEqualTo: monitorUserId)
+            .getDocuments()
+        
+        let sessionsToDelete = snapshot.documents.filter { doc in
+            doc.documentID != excludeSessionId
+        }
+        
+        if !sessionsToDelete.isEmpty {
+            let batch = db.batch()
+            for doc in sessionsToDelete {
+                batch.deleteDocument(doc.reference)
+            }
+            try await batch.commit()
+            
+            #if DEBUG
+            print("SignalingService: 同じユーザーの既存セッション \(sessionsToDelete.count)件を削除しました")
+            #endif
+        }
+    }
+    
     // MARK: - セッション監視
     
     /// 既存のwaitingセッションを取得（カメラ側: 監視開始前に作成されたセッションに対応）
@@ -94,6 +125,55 @@ class SignalingService {
         return snapshot.documents.compactMap { doc -> SessionModel? in
             let data = doc.data()
             return SessionModel(from: data, documentId: doc.documentID)
+        }
+    }
+    
+    /// 接続済みセッションを取得（カメラ側: 起動時のクリーンアップ用）
+    func getConnectedSessions(cameraId: String) async throws -> [SessionModel] {
+        let snapshot = try await db.collection("cameras").document(cameraId)
+            .collection("sessions")
+            .whereField("status", isEqualTo: SessionModel.SessionStatus.connected.rawValue)
+            .getDocuments()
+        
+        return snapshot.documents.compactMap { doc -> SessionModel? in
+            let data = doc.data()
+            return SessionModel(from: data, documentId: doc.documentID)
+        }
+    }
+    
+    /// すべての接続済みセッションを削除（カメラ側: 起動時のクリーンアップ用）
+    func cleanupAllConnectedSessions(cameraId: String) async throws {
+        let sessions = try await getConnectedSessions(cameraId: cameraId)
+        
+        // バッチ削除
+        let batch = db.batch()
+        for session in sessions {
+            guard let sessionId = session.id else { continue }
+            let sessionRef = db.collection("cameras").document(cameraId)
+                .collection("sessions").document(sessionId)
+            batch.deleteDocument(sessionRef)
+        }
+        
+        if !sessions.isEmpty {
+            try await batch.commit()
+        }
+    }
+    
+    /// すべてのwaitingセッションを削除（カメラ側: 起動時のクリーンアップ用）
+    func cleanupAllWaitingSessions(cameraId: String) async throws {
+        let sessions = try await getWaitingSessions(cameraId: cameraId)
+        
+        // バッチ削除
+        let batch = db.batch()
+        for session in sessions {
+            guard let sessionId = session.id else { continue }
+            let sessionRef = db.collection("cameras").document(cameraId)
+                .collection("sessions").document(sessionId)
+            batch.deleteDocument(sessionRef)
+        }
+        
+        if !sessions.isEmpty {
+            try await batch.commit()
         }
     }
     
@@ -187,8 +267,8 @@ class SignalingService {
                 completion(.success(answer))
             }
         
-        let key = "\(cameraId)_\(sessionId)"
-        iceCandidateListeners[key] = listener
+        let key = "\(cameraId)_\(sessionId)_answer"
+        answerListeners[key] = listener
         return listener
     }
     
@@ -212,7 +292,7 @@ class SignalingService {
             }
         
         let key = "\(cameraId)_\(sessionId)_session"
-        iceCandidateListeners[key] = listener
+        sessionListeners[key] = listener
         return listener
     }
     
@@ -247,7 +327,7 @@ class SignalingService {
         try await candidateRef.setData(candidateData)
     }
     
-    /// ICE Candidatesを監視
+    /// ICE Candidatesを監視（新規追加分のみコールバック）
     func observeICECandidates(
         cameraId: String,
         sessionId: String,
@@ -267,10 +347,16 @@ class SignalingService {
                     return
                 }
                 
-                let candidates = snapshot.documents.compactMap { doc -> ICECandidateModel? in
-                    try? doc.data(as: ICECandidateModel.self)
+                // documentChangesの.addedのみを処理し、既存候補の再処理を防止
+                let newCandidates = snapshot.documentChanges
+                    .filter { $0.type == .added }
+                    .compactMap { change -> ICECandidateModel? in
+                        try? change.document.data(as: ICECandidateModel.self)
+                    }
+                
+                if !newCandidates.isEmpty {
+                    completion(.success(newCandidates))
                 }
-                completion(.success(candidates))
             }
         
         let key = "\(cameraId)_\(sessionId)_ice"
@@ -296,8 +382,10 @@ class SignalingService {
     /// 全ての監視を停止
     func stopAllObservers() {
         sessionListeners.values.forEach { $0.remove() }
+        answerListeners.values.forEach { $0.remove() }
         iceCandidateListeners.values.forEach { $0.remove() }
         sessionListeners.removeAll()
+        answerListeners.removeAll()
         iceCandidateListeners.removeAll()
     }
 }

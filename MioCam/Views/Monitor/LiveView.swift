@@ -12,7 +12,7 @@ import FirebaseFirestore
 /// ライブビュー画面
 struct LiveView: View {
     @EnvironmentObject var authService: AuthenticationService
-    @ObservedObject var viewModel: MonitorViewModel
+    let viewModel: MonitorViewModel
     @Environment(\.dismiss) private var dismiss
     
     let cameraLink: MonitorLinkModel
@@ -38,6 +38,19 @@ struct LiveView: View {
     @State private var isMicActive = false
     @State private var showOfflineAlert = false
     @State private var offlineMessage: String?
+    @State private var isSpeakerMuted = false
+    @State private var isAudioPermitted = false  // カメラ側の音声許可状態
+    @State private var connectionTimeoutTask: Task<Void, Never>?
+    @State private var connectionTimedOut = false
+    @State private var reconnectAttempt = 0
+    @State private var reconnectTask: Task<Void, Never>?
+    @State private var hasEverConnected = false  // 一度でも接続に成功したか
+    @State private var hasReceivedAnswer = false  // Answerを既に受信・設定済みか
+    @State private var connectedUsers: [String] = []  // 接続中のユーザー名リスト
+    @State private var connectedSessionsListener: ListenerRegistration?
+    @State private var userDisplayNameCache: [String: String] = [:]  // ユーザーID -> displayNameのキャッシュ
+    
+    private let maxReconnectAttempts = 5
     
     private let webRTCService = WebRTCService.shared
     private let signalingService = SignalingService.shared
@@ -88,23 +101,37 @@ struct LiveView: View {
     
     @State private var webRTCDelegate: WebRTCDelegate?
     
+    /// ビデオ表示専用ビュー（他の状態変更から分離）
+    private struct VideoPlayerView: View, Equatable {
+        let videoTrack: RTCVideoTrack?
+        let zoomScale: CGFloat
+        
+        static func == (lhs: Self, rhs: Self) -> Bool {
+            lhs.videoTrack === rhs.videoTrack && lhs.zoomScale == rhs.zoomScale
+        }
+        
+        var body: some View {
+            if let track = videoTrack {
+                VideoView(videoTrack: track, contentMode: .scaleAspectFit)
+                    .scaleEffect(zoomScale)
+                    .ignoresSafeArea()
+            }
+        }
+    }
+    
     var body: some View {
         ZStack {
             // 背景
             Color.black
                 .ignoresSafeArea()
             
-            // 映像表示エリア
-            if let track = videoTrack {
-                VideoView(videoTrack: track, contentMode: .scaleAspectFit)
-                    .scaleEffect(zoomScale)
-                    .gesture(magnificationGesture)
-                    .gesture(doubleTapGesture)
-                    .ignoresSafeArea()
-            }
+            // 映像表示エリア（EquatableViewで分離）
+            EquatableView(content: VideoPlayerView(videoTrack: videoTrack, zoomScale: zoomScale))
+                .gesture(magnificationGesture)
+                .gesture(doubleTapGesture)
             
             // 接続中/再接続中オーバーレイ
-            if isConnecting || isReconnecting {
+            if isConnecting || isReconnecting || connectionTimedOut {
                 connectionOverlay
             }
             
@@ -113,7 +140,8 @@ struct LiveView: View {
                 statusOverlay
             }
         }
-        .navigationBarHidden(true)
+        .navigationTitle(cameraInfo?.deviceName ?? "ライブビュー")
+        .navigationBarTitleDisplayMode(.inline)
         .contentShape(Rectangle())
         .onTapGesture {
             toggleOverlay()
@@ -175,34 +203,95 @@ struct LiveView: View {
     // MARK: - 接続中オーバーレイ
     
     private var connectionOverlay: some View {
-        VStack(spacing: 16) {
-            if isReconnecting {
-                Image(systemName: "wifi.exclamationmark")
-                    .font(.system(size: 48))
-                    .foregroundColor(.white.opacity(0.7))
+        ZStack {
+            // 閉じるボタン（左上に常時表示）
+            VStack {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 36, height: 36)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                            )
+                    }
+                    .padding(.leading, 16)
+                    .padding(.top, 8)
+                    
+                    Spacer()
+                }
+                Spacer()
             }
             
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                .scaleEffect(1.5)
-            
-            Text(isReconnecting ? "再接続中..." : "接続中...")
-                .font(.system(.body, design: .rounded))
-                .foregroundColor(.white.opacity(0.8))
-            
-            if let error = connectionError {
-                Text(error)
-                    .font(.system(.caption))
-                    .foregroundColor(.mioError)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+            // 接続状態表示（中央）
+            VStack(spacing: 16) {
+                if isReconnecting {
+                    Image(systemName: "wifi.exclamationmark")
+                        .font(.system(size: 48))
+                        .foregroundColor(.white.opacity(0.7))
+                } else if connectionTimedOut {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 48))
+                        .foregroundColor(.mioError)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(1.5)
+                }
+                
+                Text(connectionTimedOut ? "接続がタイムアウトしました" : (isReconnecting ? "再接続中..." : "接続中..."))
+                    .font(.system(.body, design: .rounded))
+                    .foregroundColor(.white.opacity(0.8))
+                
+                if let error = connectionError {
+                    Text(error)
+                        .font(.system(.caption))
+                        .foregroundColor(.mioError)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                if connectionTimedOut {
+                    Text("接続に時間がかかっています。もう一度お試しください。")
+                        .font(.system(.caption))
+                        .foregroundColor(.white.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+                
+                // リトライボタン（タイムアウト時のみ表示）
+                if connectionTimedOut {
+                    Button {
+                        connectionTimedOut = false
+                        connectionError = nil
+                        Task {
+                            await startConnection()
+                        }
+                    } label: {
+                        Text("再試行")
+                            .font(.system(.body, design: .rounded))
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(Color.mioAccent)
+                            )
+                    }
+                    .padding(.top, 8)
+                }
             }
+            .padding()
+            .background(
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.black.opacity(0.7))
+            )
         }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color.black.opacity(0.7))
-        )
     }
     
     // MARK: - ステータスオーバーレイ
@@ -216,9 +305,23 @@ struct LiveView: View {
                     Circle()
                         .fill(cameraInfo?.isOnline == true ? Color.mioSuccess : Color.mioError)
                         .frame(width: 8, height: 8)
-                    Text(cameraInfo?.isOnline == true ? "接続中" : "オフライン")
-                        .font(.system(.caption))
-                        .fontWeight(.medium)
+                    
+                    if cameraInfo?.isOnline == true {
+                        // 接続中のユーザー名を表示
+                        if connectedUsers.isEmpty {
+                            Text("接続中")
+                                .font(.system(.caption))
+                                .fontWeight(.medium)
+                        } else {
+                            Text(connectedUsers.joined(separator: " "))
+                                .font(.system(.caption))
+                                .fontWeight(.medium)
+                        }
+                    } else {
+                        Text("オフライン")
+                            .font(.system(.caption))
+                            .fontWeight(.medium)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -269,25 +372,63 @@ struct LiveView: View {
                 
                 Spacer()
                 
+                // スピーカーボタン（音声許可時のみ表示）
+                if isAudioPermitted {
+                    Button {
+                        isSpeakerMuted.toggle()
+                        audioTrack?.isEnabled = !isSpeakerMuted
+                    } label: {
+                        Image(systemName: isSpeakerMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 20))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(
+                                Circle()
+                                    .fill(.ultraThinMaterial)
+                            )
+                    }
+                    
+                    Spacer()
+                }
+                
                 // プッシュ・トゥ・トークマイクボタン
                 Button {
                     // ボタンは押下中のみ有効（DragGestureで処理）
                 } label: {
-                    Image(systemName: isMicActive ? "mic.fill" : "mic.slash.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(isMicActive ? .white : .white.opacity(0.7))
-                        .frame(width: 56, height: 56)
-                        .background(
-                            Group {
-                                if isMicActive {
-                                    Circle()
-                                        .fill(Color.mioAccent)
-                                } else {
-                                    Circle()
-                                        .fill(.ultraThinMaterial)
+                    ZStack {
+                        // パルスアニメーション（アクティブ時）
+                        if isMicActive {
+                            Circle()
+                                .stroke(Color.mioAccent.opacity(0.4), lineWidth: 2)
+                                .frame(width: 72, height: 72)
+                                .scaleEffect(isMicActive ? 1.3 : 1.0)
+                                .opacity(isMicActive ? 0 : 1)
+                                .animation(.easeOut(duration: 1.0).repeatForever(autoreverses: false), value: isMicActive)
+                        }
+                        
+                        // 破線リング（非アクティブ時）/ 実線リング（アクティブ時）
+                        Circle()
+                            .stroke(style: isMicActive ? StrokeStyle(lineWidth: 2) : StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                            .frame(width: 60, height: 60)
+                            .foregroundColor(isMicActive ? .mioAccent : .white.opacity(0.5))
+                        
+                        // マイクアイコン
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(isMicActive ? .white : .white.opacity(0.7))
+                            .frame(width: 60, height: 60)
+                            .background(
+                                Group {
+                                    if isMicActive {
+                                        Circle().fill(Color.mioAccent)
+                                    } else {
+                                        Circle().fill(.ultraThinMaterial)
+                                    }
                                 }
-                            }
-                        )
+                            )
+                            .scaleEffect(isMicActive ? 1.1 : 1.0)
+                            .animation(.easeInOut(duration: 0.15), value: isMicActive)
+                    }
                 }
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 0)
@@ -387,11 +528,28 @@ struct LiveView: View {
             iceCandidateListener = nil
             sessionListener?.remove()
             sessionListener = nil
+            connectedSessionsListener?.remove()
+            connectedSessionsListener = nil
             webRTCService.closeSession(sessionId: oldSessionId)
         }
         
         isConnecting = true
         connectionError = nil
+        connectionTimedOut = false
+        hasReceivedAnswer = false
+        
+        // 既存のタイムアウトタスクをキャンセル
+        connectionTimeoutTask?.cancel()
+        
+        // 30秒のタイムアウトタスクを開始
+        connectionTimeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30秒
+            if !Task.isCancelled && isConnecting && videoTrack == nil {
+                connectionTimedOut = true
+                connectionError = "接続に時間がかかっています。ネットワーク接続を確認してください。"
+                isConnecting = false
+            }
+        }
         
         do {
             // カメラ情報を取得
@@ -426,7 +584,14 @@ struct LiveView: View {
                                 self.offlineMessage = "カメラがオフラインになりました"
                                 self.showOfflineAlert = true
                             }
-                            self.cameraInfo = updatedCamera
+                            // 表示に関連するフィールドが変わった場合のみ更新（不要な再描画を防止）
+                            if self.cameraInfo == nil
+                                || self.cameraInfo?.isOnline != updatedCamera.isOnline
+                                || self.cameraInfo?.batteryLevel != updatedCamera.batteryLevel
+                                || self.cameraInfo?.deviceName != updatedCamera.deviceName
+                                || self.cameraInfo?.connectedMonitorCount != updatedCamera.connectedMonitorCount {
+                                self.cameraInfo = updatedCamera
+                            }
                         }
                     case .failure(let error):
                         print("カメラ監視エラー: \(error.localizedDescription)")
@@ -442,9 +607,134 @@ struct LiveView: View {
             // Offerはdelegate経由で受け取る（handleOfferGenerated）
             try await webRTCService.startConnection(sessionId: newSessionId)
             
+            // 接続済みセッションを監視（接続中のユーザー名を取得）
+            // 接続確立後に開始（handleRemoteVideoTrackで開始）
+            
         } catch {
             connectionError = error.localizedDescription
             isConnecting = false
+        }
+    }
+    
+    // MARK: - Connected Sessions Observation
+    
+    /// 接続済みセッションを監視して接続中のユーザー名を取得
+    private func startObservingConnectedSessions(cameraId: String, currentSessionId: String?) {
+        // 既存のリスナーを削除
+        connectedSessionsListener?.remove()
+        connectedSessionsListener = nil
+        
+        connectedSessionsListener = signalingService.observeConnectedSessions(cameraId: cameraId) { [self] result in
+            Task { @MainActor in
+                switch result {
+                case .success(let sessions):
+                    // 接続中のユーザーのdisplayNameを取得（自分のセッションも含む）
+                    // monitorUserIdで重複を排除（同じユーザーは1回だけ表示）
+                    var userNames: [String] = []
+                    var seenUserIds: Set<String> = []
+                    
+                    #if DEBUG
+                    print("接続済みセッション数: \(sessions.count)")
+                    #endif
+                    
+                    // フィルタリング: 重複ユーザーIDを排除（自分のセッションも含める）
+                    var targetSessions: [SessionModel] = []
+                    for session in sessions {
+                        // 同じユーザーIDのセッションは1回だけ表示（重複排除）
+                        if seenUserIds.contains(session.monitorUserId) {
+                            #if DEBUG
+                            print("重複ユーザーをスキップ: \(session.monitorUserId)")
+                            #endif
+                            continue
+                        }
+                        seenUserIds.insert(session.monitorUserId)
+                        targetSessions.append(session)
+                    }
+                    
+                    #if DEBUG
+                    print("フィルタリング後のセッション数: \(targetSessions.count)")
+                    #endif
+                    
+                    // 各セッションのmonitorUserIdからusersコレクションのdisplayNameを並列取得
+                    // キャッシュを活用してFirestoreの読み取りを最小限に
+                    await withTaskGroup(of: (String, String?).self) { group in
+                        for session in targetSessions {
+                            group.addTask { [userDisplayNameCache] in
+                                // セッションにdisplayNameが既にある場合はそれを使用（最新の情報を優先）
+                                if let displayName = session.displayName, !displayName.isEmpty {
+                                    return (session.monitorUserId, displayName)
+                                }
+                                
+                                // キャッシュに存在する場合はそれを使用（Firestoreの読み取りを回避）
+                                if let cachedName = userDisplayNameCache[session.monitorUserId], !cachedName.isEmpty {
+                                    return (session.monitorUserId, cachedName)
+                                }
+                                
+                                // キャッシュにない場合のみFirestoreから取得
+                                do {
+                                    let userDoc = try await FirestoreService.shared.db
+                                        .collection("users")
+                                        .document(session.monitorUserId)
+                                        .getDocument()
+                                    
+                                    if let userData = userDoc.data(),
+                                       let name = userData["displayName"] as? String,
+                                       !name.isEmpty {
+                                        return (session.monitorUserId, name)
+                                    }
+                                } catch {
+                                    #if DEBUG
+                                    print("ユーザー情報取得エラー (\(session.monitorUserId)): \(error.localizedDescription)")
+                                    #endif
+                                }
+                                
+                                // displayNameが取得できなかった場合はmonitorDeviceNameを使用
+                                return (session.monitorUserId, session.monitorDeviceName)
+                            }
+                        }
+                        
+                        // 結果を収集し、キャッシュを更新（TaskGroup外で実行してデータ競合を回避）
+                        var userIdToDisplayName: [String: String] = [:]
+                        for await (userId, displayName) in group {
+                            if let displayName = displayName, !displayName.isEmpty {
+                                userIdToDisplayName[userId] = displayName
+                                // キャッシュに保存（新しい値または更新された値の場合）
+                                self.userDisplayNameCache[userId] = displayName
+                            }
+                        }
+                        
+                        // セッションの順序を保持しながらdisplayNameを取得
+                        for session in targetSessions {
+                            if let displayName = userIdToDisplayName[session.monitorUserId] {
+                                userNames.append(displayName)
+                                #if DEBUG
+                                print("セッション \(session.id ?? "unknown"): userId=\(session.monitorUserId), displayName=\(displayName)")
+                                #endif
+                            } else {
+                                // フォールバック: monitorDeviceNameを使用
+                                if !session.monitorDeviceName.isEmpty {
+                                    userNames.append(session.monitorDeviceName)
+                                    #if DEBUG
+                                    print("セッション \(session.id ?? "unknown"): userId=\(session.monitorUserId), displayName=取得失敗、monitorDeviceName=\(session.monitorDeviceName)")
+                                    #endif
+                                }
+                            }
+                        }
+                    }
+                    
+                    #if DEBUG
+                    print("表示するユーザー名: \(userNames)")
+                    #endif
+                    
+                    // 実際に変更があった場合のみ更新（不要な再描画を防止）
+                    if self.connectedUsers != userNames {
+                        self.connectedUsers = userNames
+                    }
+                    
+                case .failure(let error):
+                    print("接続済みセッション監視エラー: \(error.localizedDescription)")
+                }
+            }
         }
     }
     
@@ -487,6 +777,43 @@ struct LiveView: View {
             let monitorDeviceName = UIDevice.current.name
             
             // 2. Firestoreにセッション + Offerを書き込み（UUIDをドキュメントIDとして使用）
+            // displayNameを取得してセッションに含める（Firestoreのusersコレクションから取得）
+            var displayName: String? = nil
+            do {
+                let userDoc = try await FirestoreService.shared.db
+                    .collection("users")
+                    .document(monitorUserId)
+                    .getDocument()
+                
+                if let userData = userDoc.data(),
+                   let name = userData["displayName"] as? String,
+                   !name.isEmpty {
+                    displayName = name
+                    #if DEBUG
+                    print("FirestoreからdisplayNameを取得: \(name)")
+                    #endif
+                } else {
+                    #if DEBUG
+                    print("FirestoreにdisplayNameが存在しないか空です")
+                    #endif
+                }
+            } catch {
+                print("ユーザー情報取得エラー: \(error.localizedDescription)")
+            }
+            
+            // displayNameが取得できなかった場合は、Firebase AuthのdisplayNameを試す
+            if displayName == nil || displayName?.isEmpty == true {
+                displayName = authService.currentUser?.displayName
+                #if DEBUG
+                print("Firebase AuthからdisplayNameを取得: \(displayName ?? "nil")")
+                #endif
+            }
+            
+            #if DEBUG
+            print("セッション作成時のdisplayName: \(displayName ?? "nil")")
+            #endif
+            
+            // セッションを作成
             _ = try await signalingService.createSession(
                 cameraId: cameraLink.cameraId,
                 sessionId: sessionId,
@@ -494,26 +821,31 @@ struct LiveView: View {
                 monitorDeviceId: monitorDeviceId,
                 monitorDeviceName: monitorDeviceName,
                 pairingCode: camera.pairingCode,
-                offer: offer.toDict()
+                offer: offer.toDict(),
+                displayName: displayName
             )
             
             // 3. Answerを監視（既存のAnswerも即座に確認）
-            Task { @MainActor in
-                do {
-                    // 既存のAnswerを確認（監視開始前に書き込まれたAnswerに対応）
-                    if let existingAnswer = try await signalingService.getAnswer(cameraId: cameraLink.cameraId, sessionId: sessionId) {
-                        await handleAnswerReceived(.success(existingAnswer), sessionId: sessionId)
-                    }
-                } catch {
+            // 既存のAnswerを確認（監視開始前に書き込まれたAnswerに対応）
+            do {
+                if let existingAnswer = try await signalingService.getAnswer(cameraId: cameraLink.cameraId, sessionId: sessionId) {
+                    await handleAnswerReceived(.success(existingAnswer), sessionId: sessionId)
                 }
+            } catch {
+                #if DEBUG
+                print("handleOfferGenerated: 既存Answer確認エラー - \(error.localizedDescription)")
+                #endif
             }
             
-            answerListener = signalingService.observeAnswer(
-                cameraId: cameraLink.cameraId,
-                sessionId: sessionId
-            ) { [self] result in
-                Task { @MainActor in
-                    await self.handleAnswerReceived(result, sessionId: sessionId)
+            // 既にAnswerを受信済みでなければリスナーを登録
+            if !hasReceivedAnswer {
+                answerListener = signalingService.observeAnswer(
+                    cameraId: cameraLink.cameraId,
+                    sessionId: sessionId
+                ) { [self] result in
+                    Task { @MainActor in
+                        await self.handleAnswerReceived(result, sessionId: sessionId)
+                    }
                 }
             }
             
@@ -546,6 +878,17 @@ struct LiveView: View {
     func handleAnswerReceived(_ result: Result<[String: Any]?, Error>, sessionId: String) async {
         // セッションIDが一致しているか確認
         guard sessionId == self.sessionId else {
+            #if DEBUG
+            print("handleAnswerReceived: セッションID不一致 (expected: \(self.sessionId ?? "nil"), received: \(sessionId))")
+            #endif
+            return
+        }
+        
+        // 既にAnswerを設定済みの場合はスキップ（重複処理防止）
+        guard !hasReceivedAnswer else {
+            #if DEBUG
+            print("handleAnswerReceived: 既にAnswerを設定済みのためスキップ")
+            #endif
             return
         }
         
@@ -554,27 +897,55 @@ struct LiveView: View {
             guard let answerDict = answerDict,
                   let answer = RTCSessionDescription.from(dict: answerDict) else {
                 // Answerがまだない場合は待機
+                #if DEBUG
+                print("handleAnswerReceived: Answerがまだありません")
+                #endif
                 return
             }
+            
+            // フラグを先に立てて重複呼び出しを防止
+            hasReceivedAnswer = true
+            
+            #if DEBUG
+            print("handleAnswerReceived: Answerを受信しました")
+            #endif
             
             do {
                 // 5. Answerを設定
                 try await webRTCService.handleAnswer(sessionId: sessionId, answer: answer)
+                #if DEBUG
+                print("handleAnswerReceived: Answerを設定しました")
+                #endif
             } catch {
+                // エラー時はフラグをリセットして再試行可能にする
+                hasReceivedAnswer = false
                 connectionError = "Answerの設定に失敗しました: \(error.localizedDescription)"
                 isConnecting = false
+                #if DEBUG
+                print("handleAnswerReceived: Answer設定エラー - \(error.localizedDescription)")
+                #endif
             }
             
         case .failure(let error):
             connectionError = "Answerの受信に失敗しました: \(error.localizedDescription)"
             isConnecting = false
+            #if DEBUG
+            print("handleAnswerReceived: Answer受信エラー - \(error.localizedDescription)")
+            #endif
         }
     }
     
     func handleICECandidatesReceived(_ result: Result<[ICECandidateModel], Error>, sessionId: String) async {
         switch result {
         case .success(let candidates):
-            // カメラ側からのICE Candidateを処理
+            let cameraCandidates = candidates.filter { $0.sender == .camera }
+            var typeCounts: [String: Int] = [:]
+            for candidateModel in cameraCandidates {
+                let candidateType = DebugLogger.candidateType(from: candidateModel.candidate)
+                typeCounts[candidateType, default: 0] += 1
+            }
+            
+            // カメラ側からのICE Candidateを処理（新規追加分のみ）
             for candidateModel in candidates {
                 // カメラ側からのもののみ処理（モニター側は自分で生成したもの）
                 guard candidateModel.sender == .camera,
@@ -612,8 +983,11 @@ struct LiveView: View {
             // isAudioEnabledがnilの場合はfalseとして扱う（デフォルトOFF）
             let isAudioEnabled = sessionData["isAudioEnabled"] as? Bool ?? false
             
-            // カメラ側の音声設定に応じてリモートオーディオトラックのisEnabledを更新
-            audioTrack.isEnabled = isAudioEnabled
+            // カメラ側の音声許可状態を更新
+            isAudioPermitted = isAudioEnabled
+            
+            // カメラ側の音声設定に応じてリモートオーディオトラックのisEnabledを更新（ローカルミュート状態を考慮）
+            audioTrack.isEnabled = isAudioEnabled && !isSpeakerMuted
             
         case .failure(let error):
             print("セッション監視エラー: \(error.localizedDescription)")
@@ -639,10 +1013,26 @@ struct LiveView: View {
     }
     
     func handleRemoteVideoTrack(_ track: RTCVideoTrack) {
+        #if DEBUG
+        print("handleRemoteVideoTrack: リモートビデオトラックを受信しました")
+        #endif
+        
         // リモートビデオトラックを受信
         videoTrack = track
         isConnecting = false
         connectionError = nil
+        connectionTimedOut = false
+        // タイムアウトタスクをキャンセル
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = nil
+        
+        // 接続確立後に接続済みセッションの監視を開始
+        if connectedSessionsListener == nil, let sessionId = sessionId {
+            #if DEBUG
+            print("handleRemoteVideoTrack: 接続済みセッションの監視を開始します")
+            #endif
+            startObservingConnectedSessions(cameraId: cameraLink.cameraId, currentSessionId: sessionId)
+        }
     }
     
     func handleRemoteAudioTrack(_ track: RTCAudioTrack) {
@@ -659,16 +1049,23 @@ struct LiveView: View {
                     .collection("sessions").document(sessionId)
                     .getDocument()
                 
+                let isAudioEnabled: Bool
                 if let data = sessionDoc.data(),
-                   let isAudioEnabled = data["isAudioEnabled"] as? Bool {
-                    // FirestoreのisAudioEnabledに基づいて設定
-                    track.isEnabled = isAudioEnabled
+                   let enabled = data["isAudioEnabled"] as? Bool {
+                    isAudioEnabled = enabled
                 } else {
                     // isAudioEnabledがnilの場合はfalseとして扱う（デフォルトOFF）
-                    track.isEnabled = false
+                    isAudioEnabled = false
                 }
+                
+                // カメラ側の音声許可状態を更新
+                self.isAudioPermitted = isAudioEnabled
+                
+                // FirestoreのisAudioEnabledに基づいて設定（ローカルミュート状態を考慮）
+                track.isEnabled = isAudioEnabled && !isSpeakerMuted
             } catch {
                 // エラーの場合はデフォルトOFF
+                self.isAudioPermitted = false
                 track.isEnabled = false
             }
         }
@@ -700,14 +1097,78 @@ struct LiveView: View {
         switch state {
         case .connected:
             isConnecting = false
+            isReconnecting = false
             connectionError = nil
+            connectionTimedOut = false
+            hasEverConnected = true
+            reconnectAttempt = 0
+            // タイムアウトタスクをキャンセル
+            connectionTimeoutTask?.cancel()
+            connectionTimeoutTask = nil
+            reconnectTask?.cancel()
+            reconnectTask = nil
+            
             // WebRTC接続完了後にスピーカー出力を確実にする
             backgroundAudioService.ensureSpeakerOutput()
-        case .disconnected, .failed, .closed:
-            isConnecting = false
-            if connectionError == nil {
-                connectionError = "接続が切断されました"
+            // 接続確立後に接続済みセッションの監視を開始（まだ開始されていない場合）
+            if connectedSessionsListener == nil, let currentSessionId = self.sessionId {
+                startObservingConnectedSessions(cameraId: cameraLink.cameraId, currentSessionId: currentSessionId)
             }
+        case .disconnected, .failed:
+            // タイムアウトタスクをキャンセル
+            connectionTimeoutTask?.cancel()
+            connectionTimeoutTask = nil
+            
+            // 一度接続に成功していた場合のみ自動再接続を試みる
+            if hasEverConnected && reconnectAttempt < maxReconnectAttempts {
+                isReconnecting = true
+                isConnecting = false
+                connectionError = nil
+                
+                let attempt = reconnectAttempt
+                let delay = pow(2.0, Double(attempt)) // 1s, 2s, 4s, 8s, 16s
+                
+                reconnectTask?.cancel()
+                reconnectTask = Task { @MainActor in
+                    print("WebRTC: 再接続試行 \(attempt + 1)/\(maxReconnectAttempts) (\(Int(delay))秒後)")
+                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    
+                    guard !Task.isCancelled else { return }
+                    
+                    // 再接続前に古いセッションIDをクリーンアップ
+                    if let oldSessionId = self.sessionId {
+                        // 古いセッションをクリーンアップ
+                        self.webRTCService.closeSession(sessionId: oldSessionId)
+                        // Firestoreのセッションも削除
+                        Task {
+                            try? await self.signalingService.updateSessionStatus(
+                                cameraId: self.cameraLink.cameraId,
+                                sessionId: oldSessionId,
+                                status: .disconnected
+                            )
+                            try? await self.signalingService.deleteSession(cameraId: self.cameraLink.cameraId, sessionId: oldSessionId)
+                        }
+                    }
+                    
+                    reconnectAttempt += 1
+                    // 新しいセッションIDを生成
+                    self.sessionId = UUID().uuidString
+                    await startConnection()
+                }
+            } else {
+                isConnecting = false
+                isReconnecting = false
+                if connectionError == nil {
+                    connectionError = hasEverConnected ? "接続が切断されました。再接続に失敗しました。" : "接続が切断されました"
+                }
+            }
+        case .closed:
+            // 明示的に閉じた場合は再接続しない
+            isConnecting = false
+            isReconnecting = false
+            // タイムアウトタスクをキャンセル
+            connectionTimeoutTask?.cancel()
+            connectionTimeoutTask = nil
         case .connecting:
             isConnecting = true
         case .new:
@@ -716,12 +1177,22 @@ struct LiveView: View {
     }
     
     private func cleanup() {
+        // すべてのタスクをキャンセル
         hideOverlayTask?.cancel()
+        hideOverlayTask = nil
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = nil
+        reconnectTask?.cancel()
+        reconnectTask = nil
         
         // マイクを無効化
         if isMicActive {
             disableMic()
         }
+        
+        // デリゲートを先にクリア（closeSession中のコールバックがビューの状態を変更するのを防止）
+        webRTCService.delegate = nil
+        webRTCDelegate = nil
         
         // リスナーを削除
         answerListener?.remove()
@@ -730,10 +1201,12 @@ struct LiveView: View {
         iceCandidateListener = nil
         sessionListener?.remove()
         sessionListener = nil
+        connectedSessionsListener?.remove()
+        connectedSessionsListener = nil
         cameraListener?.remove()
         cameraListener = nil
         
-        // WebRTCセッションを終了
+        // WebRTCセッションを終了（バックグラウンドスレッドでclose()が実行される）
         if let sessionId = sessionId {
             webRTCService.closeSession(sessionId: sessionId)
             
@@ -754,15 +1227,27 @@ struct LiveView: View {
             }
         }
         
+        // セッションIDをnilに設定して再使用を防止
+        sessionId = nil
+        
+        // 状態をリセット
+        isConnecting = false
+        isReconnecting = false
+        hasEverConnected = false
+        hasReceivedAnswer = false
+        reconnectAttempt = 0
+        connectionError = nil
+        connectionTimedOut = false
+        videoTrack = nil
+        audioTrack = nil
+        connectedUsers = []
+        userDisplayNameCache.removeAll()  // キャッシュをクリア
+        
         // モニター側のAVAudioSession設定を解除
         backgroundAudioService.stopForMonitorMode()
         
         // アイドルタイマーを元に戻す
         UIApplication.shared.isIdleTimerDisabled = originalIdleTimerDisabled
-        
-        // デリゲートをクリア
-        webRTCService.delegate = nil
-        webRTCDelegate = nil
     }
     
     // MARK: - Battery Display

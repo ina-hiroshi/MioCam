@@ -14,6 +14,7 @@ struct SessionModel: Codable, Identifiable {
     var monitorUserId: String
     var monitorDeviceId: String
     var monitorDeviceName: String
+    var displayName: String? // モニター側の表示名（オプショナル）
     var offer: [String: Any]? // SDP Offer (RTCSessionDescription)
     var answer: [String: Any]? // SDP Answer (RTCSessionDescription)
     var status: SessionStatus
@@ -31,6 +32,7 @@ struct SessionModel: Codable, Identifiable {
         case monitorUserId
         case monitorDeviceId
         case monitorDeviceName
+        case displayName
         case offer
         case answer
         case status
@@ -45,6 +47,7 @@ struct SessionModel: Codable, Identifiable {
         monitorUserId = try container.decode(String.self, forKey: .monitorUserId)
         monitorDeviceId = try container.decode(String.self, forKey: .monitorDeviceId)
         monitorDeviceName = try container.decode(String.self, forKey: .monitorDeviceName)
+        displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
         status = try container.decode(SessionStatus.self, forKey: .status)
         isAudioEnabled = try container.decodeIfPresent(Bool.self, forKey: .isAudioEnabled)
         createdAt = try container.decode(Timestamp.self, forKey: .createdAt)
@@ -70,6 +73,7 @@ struct SessionModel: Codable, Identifiable {
         self.monitorUserId = monitorUserId
         self.monitorDeviceId = monitorDeviceId
         self.monitorDeviceName = monitorDeviceName
+        self.displayName = documentData["displayName"] as? String
         self.status = status
         self.isAudioEnabled = documentData["isAudioEnabled"] as? Bool
         self.createdAt = createdAt
@@ -85,6 +89,7 @@ struct SessionModel: Codable, Identifiable {
         try container.encode(monitorUserId, forKey: .monitorUserId)
         try container.encode(monitorDeviceId, forKey: .monitorDeviceId)
         try container.encode(monitorDeviceName, forKey: .monitorDeviceName)
+        try container.encodeIfPresent(displayName, forKey: .displayName)
         try container.encode(status, forKey: .status)
         try container.encodeIfPresent(isAudioEnabled, forKey: .isAudioEnabled)
         try container.encode(createdAt, forKey: .createdAt)

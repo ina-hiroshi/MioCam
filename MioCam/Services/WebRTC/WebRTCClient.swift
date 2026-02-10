@@ -32,6 +32,13 @@ class WebRTCClient: NSObject {
     /// オーディオ送信者（カメラ側で音声のミュート制御に使用）
     private(set) var audioSender: RTCRtpSender?
     
+    /// ビデオ送信者（カメラ側でエンコーディングパラメータ制御に使用）
+    private(set) var videoSender: RTCRtpSender?
+    
+    /// remote description設定前のICE Candidateキュー
+    private var pendingICECandidates: [RTCIceCandidate] = []
+    private let pendingCandidatesQueue = DispatchQueue(label: "MioCam.WebRTCClient.pendingCandidates")
+    
     init(sessionId: String, peerConnection: RTCPeerConnection) {
         self.sessionId = sessionId
         self.peerConnection = peerConnection
@@ -41,6 +48,27 @@ class WebRTCClient: NSObject {
     /// オーディオ送信者を設定（カメラ側で使用）
     func setAudioSender(_ sender: RTCRtpSender) {
         self.audioSender = sender
+    }
+    
+    /// ビデオ送信者を設定（カメラ側で使用）
+    func setVideoSender(_ sender: RTCRtpSender) {
+        self.videoSender = sender
+    }
+    
+    /// remote description設定前のICE Candidateをキューに追加
+    func addPendingCandidate(_ candidate: RTCIceCandidate) {
+        pendingCandidatesQueue.async { [weak self] in
+            self?.pendingICECandidates.append(candidate)
+        }
+    }
+    
+    /// キューに溜まったICE Candidateを取得してクリア（remote description設定後に呼び出す）
+    func drainPendingCandidates() -> [RTCIceCandidate] {
+        return pendingCandidatesQueue.sync {
+            let candidates = pendingICECandidates
+            pendingICECandidates.removeAll()
+            return candidates
+        }
     }
 }
 
@@ -82,7 +110,19 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceConnectionState) {
-        print("WebRTC: ICE connection state changed: \(newState.rawValue)")
+        let stateNames = ["new", "checking", "connected", "completed", "failed", "disconnected", "closed", "count"]
+        let stateName = newState.rawValue < stateNames.count ? stateNames[Int(newState.rawValue)] : "unknown"
+        print("WebRTC: ICE connection state changed: \(stateName) (\(newState.rawValue))")
+        DebugLogger.log(
+            hypothesisId: "H4",
+            location: "WebRTCClient.swift:didChangeIceState",
+            message: "ice_connection_state_changed",
+            data: [
+                "sessionId": sessionId,
+                "stateRaw": newState.rawValue,
+                "state": stateName
+            ]
+        )
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceGatheringState) {
@@ -90,7 +130,16 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {
-        print("WebRTC: Did generate ICE candidate")
+        print("WebRTC: Did generate ICE candidate (\(DebugLogger.candidateType(from: candidate.sdp)))")
+        DebugLogger.log(
+            hypothesisId: "H3",
+            location: "WebRTCClient.swift:didGenerateCandidate",
+            message: "ice_candidate_generated",
+            data: [
+                "sessionId": sessionId,
+                "candidateType": DebugLogger.candidateType(from: candidate.sdp)
+            ]
+        )
         delegate?.webRTCClient(self, didGenerateICECandidate: candidate)
     }
     
@@ -103,7 +152,19 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange stateChanged: RTCPeerConnectionState) {
-        print("WebRTC: Connection state changed: \(stateChanged.rawValue)")
+        let stateNames = ["new", "connecting", "connected", "disconnected", "failed", "closed"]
+        let stateName = stateChanged.rawValue < stateNames.count ? stateNames[Int(stateChanged.rawValue)] : "unknown"
+        print("WebRTC: Connection state changed: \(stateName) (\(stateChanged.rawValue))")
+        DebugLogger.log(
+            hypothesisId: "H4",
+            location: "WebRTCClient.swift:didChangeConnectionState",
+            message: "connection_state_changed",
+            data: [
+                "sessionId": sessionId,
+                "stateRaw": stateChanged.rawValue,
+                "state": stateName
+            ]
+        )
         delegate?.webRTCClient(self, didChangeConnectionState: stateChanged)
     }
 }

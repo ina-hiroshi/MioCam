@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.itoguchi
   deploymentTarget:
     iOS: "16.0"
+    watchOS: "9.0"
   developmentLanguage: ja
   xcodeVersion: "15.0"
 
@@ -30,6 +31,10 @@ targets:
         type: plist
       - path: MioCam/Resources/GoogleService-Info.plist
         type: file
+      - path: MioCam/Resources/connection_sound.caf
+        type: file
+      - path: MioCam/Resources/disconnection_sound.caf
+        type: file
     info:
       path: MioCam/Resources/Info.plist
       properties:
@@ -43,6 +48,16 @@ targets:
         NSMicrophoneUsageDescription: "MioCamは双方向音声通話機能（Phase 3）でマイクへのアクセスが必要です。"
         UIBackgroundModes:
           - audio
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
     entitlements:
       path: MioCam/Resources/MioCam.entitlements
       properties:
@@ -62,7 +77,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.itoguchi.MioCam
         SWIFT_VERSION: 5.9
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
         IPHONEOS_DEPLOYMENT_TARGET: 16.0
         DEVELOPMENT_TEAM: NUZ8XA844N
         CODE_SIGN_STYLE: Automatic
@@ -93,6 +108,38 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.itoguchi.MioCamTests
         SWIFT_VERSION: 5.9
         IPHONEOS_DEPLOYMENT_TARGET: 16.0
+
+  MioCamWatch:
+    type: application
+    platform: watchOS
+    deploymentTarget: "9.0"
+    sources:
+      - path: MioCamWatch
+    resources:
+      - path: MioCamWatch/Resources/Assets.xcassets
+        type: assetCatalog
+    info:
+      path: MioCamWatch/Resources/Info.plist
+      properties:
+        CFBundleDisplayName: MioCam
+        CFBundleIdentifier: com.itoguchi.MioCam.watchkitapp
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundleVersion: "2"
+        CFBundleShortVersionString: 2.0.0
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.itoguchi.MioCam
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.itoguchi.MioCam.watchkitapp
+        SWIFT_VERSION: 5.9
+        WATCHOS_DEPLOYMENT_TARGET: 9.0
+        DEVELOPMENT_TEAM: NUZ8XA844N
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - package: Firebase
+        products:
+          - FirebaseAuth
+          - FirebaseFirestore
 
 schemes:
   MioCam:

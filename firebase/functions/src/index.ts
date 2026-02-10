@@ -1,4 +1,5 @@
 import {onSchedule} from "firebase-functions/v2/scheduler";
+import {onDocumentCreated} from "firebase-functions/v2/firestore";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
@@ -101,6 +102,57 @@ export const cleanupDisconnectedSessions = onSchedule(
     } catch (error) {
       console.error("Error cleaning up disconnected sessions:", error);
       throw error;
+    }
+  }
+);
+
+/**
+ * セッション作成時に、同じユーザーの同じカメラの古いセッションを自動削除
+ * 新しいセッションが作成されると、同じ monitorUserId の他のセッションを削除する
+ */
+export const onSessionCreated = onDocumentCreated(
+  {
+    document: "cameras/{cameraId}/sessions/{sessionId}",
+    region: "asia-northeast1",
+  },
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const newSessionData = snapshot.data();
+    const monitorUserId = newSessionData.monitorUserId as string;
+    const newSessionId = event.params.sessionId;
+    const cameraId = event.params.cameraId;
+
+    if (!monitorUserId) return;
+
+    try {
+      // 同じカメラ内で同じ monitorUserId の他のセッションを検索
+      const existingSessions = await db
+        .collection("cameras").doc(cameraId)
+        .collection("sessions")
+        .where("monitorUserId", "==", monitorUserId)
+        .get();
+
+      // 新しいセッション以外を削除
+      const docsToDelete = existingSessions.docs.filter(
+        (doc: admin.firestore.QueryDocumentSnapshot) =>
+          doc.id !== newSessionId
+      );
+
+      if (docsToDelete.length > 0) {
+        const deletedCount = await deleteInBatches(
+          docsToDelete as admin.firestore.QueryDocumentSnapshot[]
+        );
+        console.log(
+          `onSessionCreated: Deleted ${deletedCount} old sessions ` +
+          `for user ${monitorUserId} in camera ${cameraId}`
+        );
+      }
+    } catch (error) {
+      console.error(
+        "onSessionCreated: Error deleting old sessions:", error
+      );
     }
   }
 );

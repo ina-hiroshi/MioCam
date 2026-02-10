@@ -147,7 +147,9 @@ class WebRTCService: NSObject {
         
         // ローカルビデオトラックを追加
         if let localVideoTrack = localVideoTrack {
-            client.peerConnection.add(localVideoTrack, streamIds: [streamId])
+            if let videoSender = client.peerConnection.add(localVideoTrack, streamIds: [streamId]) {
+                client.setVideoSender(videoSender)
+            }
         }
         
         // ローカルオーディオトラックを追加（デフォルトOFF）
@@ -162,10 +164,19 @@ class WebRTCService: NSObject {
         // Offerを設定
         try await client.peerConnection.setRemoteDescription(offer)
         
+        // remote description設定後、キューに溜まったICE Candidateを処理
+        await drainPendingICECandidates(sessionId: sessionId)
+        
         // Answerを生成
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
         let answer = try await client.peerConnection.answer(for: constraints)
         try await client.peerConnection.setLocalDescription(answer)
+        
+        // SDP設定後にエンコーディングパラメータを設定（初期値は1080p、解像度優先）
+        // 注意: SDPが設定された後にパラメータを設定する必要がある場合があります
+        if let videoSender = client.videoSender {
+            configureVideoEncoding(sender: videoSender, for1080p: true, preferResolution: true)
+        }
         
         delegate?.webRTCService(self, didGenerateAnswer: answer, for: sessionId)
     }
@@ -209,10 +220,27 @@ class WebRTCService: NSObject {
     /// SDP Answerを受け取って設定（モニター側）
     func handleAnswer(sessionId: String, answer: RTCSessionDescription) async throws {
         guard let client = clients[sessionId] else {
+            print("WebRTCService.handleAnswer: セッションが見つかりません - \(sessionId)")
             throw WebRTCError.sessionNotFound
         }
         
-        try await client.peerConnection.setRemoteDescription(answer)
+        // 既にremote descriptionが設定されている場合はスキップ（重複呼び出し防止）
+        if client.peerConnection.remoteDescription != nil {
+            print("WebRTCService.handleAnswer: 既にremote descriptionが設定済みのためスキップ - \(sessionId)")
+            return
+        }
+        
+        print("WebRTCService.handleAnswer: Answerを設定します - \(sessionId), signalingState=\(client.peerConnection.signalingState.rawValue)")
+        do {
+            try await client.peerConnection.setRemoteDescription(answer)
+            print("WebRTCService.handleAnswer: Answerを設定しました - \(sessionId)")
+        } catch {
+            print("WebRTCService.handleAnswer: Answer設定エラー - \(error.localizedDescription)")
+            throw error
+        }
+        
+        // remote description設定後、キューに溜まったICE Candidateを処理
+        await drainPendingICECandidates(sessionId: sessionId)
     }
     
     // MARK: - Common
@@ -223,29 +251,70 @@ class WebRTCService: NSObject {
             throw WebRTCError.sessionNotFound
         }
         
-        // remote descriptionが設定されていない場合はエラーを無視（後で再試行される）
+        // remote descriptionが設定されていない場合はキューに保存
         guard client.peerConnection.remoteDescription != nil else {
+            client.addPendingCandidate(candidate)
+            print("WebRTCService: ICE Candidateをキューに保存（remote description未設定）: \(candidate.sdp.prefix(50))...")
             return
         }
         
         try await client.peerConnection.add(candidate)
     }
     
+    /// キューに溜まったICE Candidateを処理（remote description設定後に呼び出す）
+    private func drainPendingICECandidates(sessionId: String) async {
+        guard let client = clients[sessionId] else { return }
+        
+        let pendingCandidates = client.drainPendingCandidates()
+        guard !pendingCandidates.isEmpty else { return }
+        
+        print("WebRTCService: キューに溜まったICE Candidateを処理開始: \(pendingCandidates.count)件")
+        
+        for candidate in pendingCandidates {
+            do {
+                try await client.peerConnection.add(candidate)
+                print("WebRTCService: キューからICE Candidateを追加成功: \(candidate.sdp.prefix(50))...")
+            } catch {
+                print("WebRTCService: キューからICE Candidate追加エラー: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     /// セッションを終了
     func closeSession(sessionId: String) {
         guard let client = clients[sessionId] else { return }
-        client.peerConnection.close()
+        
+        // 辞書から即座に削除（新しい操作を防止）
         clients.removeValue(forKey: sessionId)
         sessionToUserId.removeValue(forKey: sessionId)
+        
+        // デリゲートをnil化してコールバックを防止
+        client.peerConnection.delegate = nil
+        client.delegate = nil
+        
+        // peerConnection.close()はICE交渉中にメインスレッドをブロックする可能性があるため
+        // バックグラウンドスレッドで実行する
+        DispatchQueue.global(qos: .userInitiated).async {
+            client.peerConnection.close()
+        }
     }
     
     /// すべてのセッションを終了
     func closeAllSessions() {
-        for (sessionId, client) in clients {
-            client.peerConnection.close()
-            clients.removeValue(forKey: sessionId)
-        }
+        let clientsCopy = clients
+        clients.removeAll()
         sessionToUserId.removeAll()
+        
+        for (_, client) in clientsCopy {
+            client.peerConnection.delegate = nil
+            client.delegate = nil
+        }
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            for (_, client) in clientsCopy {
+                client.peerConnection.close()
+            }
+        }
     }
     
     /// セッションの接続状態を取得
@@ -299,13 +368,132 @@ class WebRTCService: NSObject {
         print("WebRTCService: setMonitorMicEnabled - sessionId=\(sessionId), enabled=\(enabled)")
     }
     
+    // MARK: - Video Encoding Control
+    
+    /// ビデオエンコーディングパラメータを設定
+    private func configureVideoEncoding(sender: RTCRtpSender, for1080p: Bool, preferResolution: Bool = true) {
+        let params = sender.parameters
+        
+        // degradationPreference を設定
+        // maintainResolution: 解像度を優先（帯域幅不足時はフレームレートを下げる）
+        // maintainFramerate: フレームレートを優先（帯域幅不足時は解像度を下げる）
+        // balanced: バランス型（解像度とフレームレートの両方を調整）
+        if preferResolution {
+            // 解像度を優先（デフォルト）
+            params.degradationPreference = NSNumber(value: RTCDegradationPreference.maintainResolution.rawValue)
+        } else {
+            // フレームレートが低すぎる場合はバランス型に切り替え
+            params.degradationPreference = NSNumber(value: RTCDegradationPreference.balanced.rawValue)
+        }
+        
+        if params.encodings.isEmpty {
+            params.encodings = [RTCRtpEncodingParameters()]
+        }
+        for encoding in params.encodings {
+            encoding.isActive = true
+            encoding.maxFramerate = NSNumber(value: 30)
+            encoding.scaleResolutionDownBy = NSNumber(value: 1.0)  // スケールダウンを防止（解像度維持のため）
+            if for1080p {
+                encoding.maxBitrateBps = NSNumber(value: 6_000_000)  // 6Mbps（1080p、解像度維持のため十分な帯域幅を確保）
+                encoding.minBitrateBps = NSNumber(value: 2_000_000)  // 最低2Mbps（1080p）
+            } else {
+                encoding.maxBitrateBps = NSNumber(value: 3_500_000)  // 3.5Mbps（720p）
+                encoding.minBitrateBps = NSNumber(value: 1_000_000)  // 最低1Mbps（720p）
+            }
+        }
+        
+        // パラメータを送信者に設定（copyセマンティクスのため明示的に設定が必要）
+        sender.parameters = params
+    }
+    
+    /// 全セッションのビデオエンコーディングパラメータを更新（品質変更時）
+    func updateVideoEncodingForAllSessions(for1080p: Bool, preferResolution: Bool = true) {
+        for (_, client) in clients {
+            if let videoSender = client.videoSender {
+                configureVideoEncoding(sender: videoSender, for1080p: for1080p, preferResolution: preferResolution)
+            }
+        }
+    }
+    
+    /// フレームレートに基づいて動的にエンコーディングパラメータを更新
+    /// フレームレートが低すぎる場合は解像度を下げてフレームレートを回復させる
+    func updateVideoEncodingBasedOnFrameRate(for1080p: Bool, currentFrameRate: Double) {
+        // 1080pを維持しつつ、フレームレートを24fps以上に保つ
+        // 24fps未満の場合はバランス型に切り替え（解像度を下げてフレームレートを回復）
+        // 24fps以上の場合、または1080pでない場合は解像度優先を維持
+        let preferResolution = currentFrameRate >= 24.0 || !for1080p
+        
+        for (_, client) in clients {
+            if let videoSender = client.videoSender {
+                configureVideoEncoding(sender: videoSender, for1080p: for1080p, preferResolution: preferResolution)
+            }
+        }
+    }
+    
+    /// ビットレートを動的に調整してフレームレートを改善
+    func adjustBitrateForFrameRate(for1080p: Bool, currentFrameRate: Double) {
+        for (_, client) in clients {
+            guard let videoSender = client.videoSender else { continue }
+            let params = videoSender.parameters
+            
+            if params.encodings.isEmpty {
+                continue
+            }
+            
+            for encoding in params.encodings {
+                encoding.isActive = true
+                encoding.maxFramerate = NSNumber(value: 30)
+                
+                if for1080p {
+                    // フレームレートが24fps未満の場合、ビットレートを少し下げて安定性を向上
+                    if currentFrameRate < 24.0 {
+                        // ビットレートを下げて帯域幅不足を解消（フレームレートを回復）
+                        encoding.maxBitrateBps = NSNumber(value: 5_000_000)  // 5Mbps（少し下げる）
+                        encoding.minBitrateBps = NSNumber(value: 1_500_000)  // 1.5Mbps
+                    } else {
+                        // フレームレートが十分な場合は通常のビットレート
+                        encoding.maxBitrateBps = NSNumber(value: 6_000_000)  // 6Mbps
+                        encoding.minBitrateBps = NSNumber(value: 2_000_000)  // 2Mbps
+                    }
+                } else {
+                    // 720pの場合
+                    encoding.maxBitrateBps = NSNumber(value: 3_500_000)  // 3.5Mbps
+                    encoding.minBitrateBps = NSNumber(value: 1_000_000)  // 1Mbps
+                }
+            }
+            
+            videoSender.parameters = params
+        }
+    }
+    
+    // MARK: - Statistics
+    
+    /// セッションの統計情報を取得
+    func getStats(for sessionId: String) async -> RTCStatisticsReport? {
+        guard let client = clients[sessionId] else { return nil }
+        return await client.peerConnection.statistics()
+    }
+    
+    /// 全セッションの統計情報を取得
+    func getAllSessionStats() async -> [String: RTCStatisticsReport] {
+        var stats: [String: RTCStatisticsReport] = [:]
+        for (sessionId, client) in clients {
+            // 接続中のセッションのみ統計情報を取得
+            if client.peerConnection.connectionState == .connected {
+                let report = await client.peerConnection.statistics()
+                stats[sessionId] = report
+            }
+        }
+        return stats
+    }
+    
     // MARK: - Private Methods
     
     private func createPeerConnection(sessionId: String) -> WebRTCClient {
         let config = RTCConfiguration()
         config.iceServers = iceServers
         config.sdpSemantics = .unifiedPlan
-        config.continualGatheringPolicy = .gatherContinually
+        config.continualGatheringPolicy = .gatherContinually  // ネットワーク変動時にも新しいICE候補を生成
         
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
         
@@ -400,5 +588,55 @@ enum WebRTCError: LocalizedError {
         case .answerCreationFailed:
             return "Answerの作成に失敗しました"
         }
+    }
+}
+
+// MARK: - Debug Logger (NDJSON)
+
+enum DebugLogger {
+    private static let logFilePath = "/Users/inahiroshi/開発/MioCam/.cursor/debug.log"
+    private static let runId = "post-fix"
+    private static let queue = DispatchQueue(label: "MioCam.DebugLogger")
+    
+    static func log(
+        hypothesisId: String,
+        location: String,
+        message: String,
+        data: [String: Any]
+    ) {
+        queue.async {
+            let payload: [String: Any] = [
+                "runId": runId,
+                "hypothesisId": hypothesisId,
+                "location": location,
+                "message": message,
+                "data": data,
+                "timestamp": Int(Date().timeIntervalSince1970 * 1000)
+            ]
+            
+            guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []),
+                  var jsonString = String(data: jsonData, encoding: .utf8) else {
+                return
+            }
+            
+            jsonString.append("\n")
+            
+            if let fileHandle = FileHandle(forWritingAtPath: logFilePath) {
+                defer { try? fileHandle.close() }
+                fileHandle.seekToEndOfFile()
+                fileHandle.write(Data(jsonString.utf8))
+            } else {
+                try? jsonString.write(toFile: logFilePath, atomically: true, encoding: .utf8)
+            }
+        }
+    }
+    
+    static func candidateType(from candidate: String) -> String {
+        let parts = candidate.split(separator: " ")
+        if let typIndex = parts.firstIndex(where: { $0 == "typ" }),
+           typIndex + 1 < parts.count {
+            return String(parts[typIndex + 1])
+        }
+        return "unknown"
     }
 }
