@@ -218,11 +218,6 @@ struct CameraSettingsSheet: View {
                 Spacer()
                 
                 if let cameraId = viewModel.cameraId, let pairingCode = viewModel.pairingCode {
-                    Text("モニターでこのQRコードを読み取ってください")
-                        .font(.system(.body))
-                        .foregroundColor(.mioTextSecondary)
-                        .multilineTextAlignment(.center)
-                    
                     if showManualPairing {
                         // 手動ペアリング情報表示
                         VStack(spacing: 20) {

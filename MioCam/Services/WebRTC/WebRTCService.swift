@@ -239,8 +239,22 @@ class WebRTCService: NSObject {
             throw error
         }
         
-        // remote description設定後、キューに溜まったICE Candidateを処理
-        await drainPendingICECandidates(sessionId: sessionId)
+        // remote description設定後、キューに溜まったICE Candidateを同期的に即座に処理
+        // （タイミング問題: ICE候補はAnswerより先に届くため、キューに溜まっている）
+        let pendingCandidates = client.drainPendingCandidates()
+        #if DEBUG
+        if !pendingCandidates.isEmpty {
+            print("WebRTCService.handleAnswer: キューに溜まったICE候補 \(pendingCandidates.count)件を追加 - \(sessionId)")
+        }
+        #endif
+        
+        for candidate in pendingCandidates {
+            do {
+                try await client.peerConnection.add(candidate)
+            } catch {
+                print("WebRTCService.handleAnswer: キューからICE候補追加エラー - \(error.localizedDescription)")
+            }
+        }
     }
     
     // MARK: - Common
@@ -254,7 +268,6 @@ class WebRTCService: NSObject {
         // remote descriptionが設定されていない場合はキューに保存
         guard client.peerConnection.remoteDescription != nil else {
             client.addPendingCandidate(candidate)
-            print("WebRTCService: ICE Candidateをキューに保存（remote description未設定）: \(candidate.sdp.prefix(50))...")
             return
         }
         
@@ -268,12 +281,13 @@ class WebRTCService: NSObject {
         let pendingCandidates = client.drainPendingCandidates()
         guard !pendingCandidates.isEmpty else { return }
         
+        #if DEBUG
         print("WebRTCService: キューに溜まったICE Candidateを処理開始: \(pendingCandidates.count)件")
+        #endif
         
         for candidate in pendingCandidates {
             do {
                 try await client.peerConnection.add(candidate)
-                print("WebRTCService: キューからICE Candidateを追加成功: \(candidate.sdp.prefix(50))...")
             } catch {
                 print("WebRTCService: キューからICE Candidate追加エラー: \(error.localizedDescription)")
             }
@@ -394,7 +408,7 @@ class WebRTCService: NSObject {
             encoding.maxFramerate = NSNumber(value: 30)
             encoding.scaleResolutionDownBy = NSNumber(value: 1.0)  // スケールダウンを防止（解像度維持のため）
             if for1080p {
-                encoding.maxBitrateBps = NSNumber(value: 6_000_000)  // 6Mbps（1080p、解像度維持のため十分な帯域幅を確保）
+                encoding.maxBitrateBps = NSNumber(value: 8_000_000)  // 8Mbps（1080p、Wi-Fi環境での高画質化）
                 encoding.minBitrateBps = NSNumber(value: 2_000_000)  // 最低2Mbps（1080p）
             } else {
                 encoding.maxBitrateBps = NSNumber(value: 3_500_000)  // 3.5Mbps（720p）
@@ -452,12 +466,12 @@ class WebRTCService: NSObject {
                         encoding.minBitrateBps = NSNumber(value: 1_500_000)  // 1.5Mbps
                     } else {
                         // フレームレートが十分な場合は通常のビットレート
-                        encoding.maxBitrateBps = NSNumber(value: 6_000_000)  // 6Mbps
+                        encoding.maxBitrateBps = NSNumber(value: 8_000_000)  // 8Mbps
                         encoding.minBitrateBps = NSNumber(value: 2_000_000)  // 2Mbps
                     }
                 } else {
                     // 720pの場合
-                    encoding.maxBitrateBps = NSNumber(value: 3_500_000)  // 3.5Mbps
+                    encoding.maxBitrateBps = NSNumber(value: 3_500_000)  // 3.5Mbps（720p）
                     encoding.minBitrateBps = NSNumber(value: 1_000_000)  // 1Mbps
                 }
             }
@@ -591,52 +605,3 @@ enum WebRTCError: LocalizedError {
     }
 }
 
-// MARK: - Debug Logger (NDJSON)
-
-enum DebugLogger {
-    private static let logFilePath = "/Users/inahiroshi/開発/MioCam/.cursor/debug.log"
-    private static let runId = "post-fix"
-    private static let queue = DispatchQueue(label: "MioCam.DebugLogger")
-    
-    static func log(
-        hypothesisId: String,
-        location: String,
-        message: String,
-        data: [String: Any]
-    ) {
-        queue.async {
-            let payload: [String: Any] = [
-                "runId": runId,
-                "hypothesisId": hypothesisId,
-                "location": location,
-                "message": message,
-                "data": data,
-                "timestamp": Int(Date().timeIntervalSince1970 * 1000)
-            ]
-            
-            guard let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: []),
-                  var jsonString = String(data: jsonData, encoding: .utf8) else {
-                return
-            }
-            
-            jsonString.append("\n")
-            
-            if let fileHandle = FileHandle(forWritingAtPath: logFilePath) {
-                defer { try? fileHandle.close() }
-                fileHandle.seekToEndOfFile()
-                fileHandle.write(Data(jsonString.utf8))
-            } else {
-                try? jsonString.write(toFile: logFilePath, atomically: true, encoding: .utf8)
-            }
-        }
-    }
-    
-    static func candidateType(from candidate: String) -> String {
-        let parts = candidate.split(separator: " ")
-        if let typIndex = parts.firstIndex(where: { $0 == "typ" }),
-           typIndex + 1 < parts.count {
-            return String(parts[typIndex + 1])
-        }
-        return "unknown"
-    }
-}

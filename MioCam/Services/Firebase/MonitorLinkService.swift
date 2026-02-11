@@ -16,15 +16,37 @@ class MonitorLinkService {
     
     private init() {}
     
-    /// ペアリング記録を作成
+    /// 同一ユーザーが同じcameraIdで複数リンクを持っている場合、古いリンクを無効化
+    func deactivateDuplicateLinks(monitorUserId: String, cameraId: String, keepLinkId: String) async throws {
+        let snapshot = try await db.collection("monitorLinks")
+            .whereField("monitorUserId", isEqualTo: monitorUserId)
+            .whereField("isActive", isEqualTo: true)
+            .getDocuments()
+        
+        let docsToDeactivate = snapshot.documents.filter {
+            ($0.data()["cameraId"] as? String) == cameraId && $0.documentID != keepLinkId
+        }
+        guard !docsToDeactivate.isEmpty else { return }
+        
+        let batch = db.batch()
+        for doc in docsToDeactivate {
+            batch.updateData(["isActive": false], forDocument: doc.reference)
+        }
+        try await batch.commit()
+    }
+    
+    /// ペアリング記録を作成（同一cameraIdの重複リンクは先に無効化）
     func createMonitorLink(
         monitorUserId: String,
         cameraId: String,
         cameraDeviceName: String
     ) async throws {
         let linkId = "\(monitorUserId)_\(cameraId)"
-        let linkRef = db.collection("monitorLinks").document(linkId)
         
+        // 同一ユーザー・同一カメラの既存アクティブリンクを無効化（異なるlinkIdのもの）
+        try await deactivateDuplicateLinks(monitorUserId: monitorUserId, cameraId: cameraId, keepLinkId: linkId)
+        
+        let linkRef = db.collection("monitorLinks").document(linkId)
         let linkData: [String: Any] = [
             "monitorUserId": monitorUserId,
             "cameraId": cameraId,

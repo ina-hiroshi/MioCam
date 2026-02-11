@@ -7,6 +7,7 @@ admin.initializeApp();
 const db = admin.firestore();
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
+const TWO_MINUTES_MS = 2 * 60 * 1000; // ハートビートタイムアウト
 const BATCH_LIMIT = 500; // Firestore batch操作の上限
 
 /**
@@ -73,6 +74,58 @@ export const cleanupStaleSessions = onSchedule(
 );
 
 /**
+ * lastHeartbeatが2分以上更新されていないconnectedセッションをdisconnectedに更新
+ * モニターアプリクラッシュ時などの検知に使用
+ * スケジュール: 5分ごとに実行
+ */
+export const cleanupStaleHeartbeatSessions = onSchedule(
+  {
+    schedule: "*/5 * * * *",
+    timeZone: "Asia/Tokyo",
+    region: "asia-northeast1",
+  },
+  async () => {
+    const now = Date.now();
+    const cutoffTime = now - TWO_MINUTES_MS;
+
+    try {
+      const sessionsSnapshot = await db.collectionGroup("sessions")
+        .where("status", "==", "connected")
+        .get();
+
+      const docsToUpdate: admin.firestore.QueryDocumentSnapshot[] = [];
+      for (const doc of sessionsSnapshot.docs) {
+        const data = doc.data();
+        const lastHeartbeat = data.lastHeartbeat as
+          admin.firestore.Timestamp | undefined;
+        if (!lastHeartbeat || lastHeartbeat.toMillis() < cutoffTime) {
+          docsToUpdate.push(doc);
+        }
+      }
+
+      if (docsToUpdate.length > 0) {
+        for (let i = 0; i < docsToUpdate.length; i += BATCH_LIMIT) {
+          const chunk = docsToUpdate.slice(i, i + BATCH_LIMIT);
+          const batch = db.batch();
+          for (const doc of chunk) {
+            batch.update(doc.ref, {status: "disconnected"});
+          }
+          await batch.commit();
+        }
+        console.log(
+          `Updated ${docsToUpdate.length} stale heartbeat sessions to disconnected`
+        );
+      }
+    } catch (error) {
+      console.error(
+        "Error cleaning up stale heartbeat sessions:", error
+      );
+      throw error;
+    }
+  }
+);
+
+/**
  * `disconnected` 状態のセッションを1時間後に自動削除
  * スケジュール: 1時間ごとに実行
  */
@@ -107,8 +160,9 @@ export const cleanupDisconnectedSessions = onSchedule(
 );
 
 /**
- * セッション作成時に、同じユーザーの同じカメラの古いセッションを自動削除
- * 新しいセッションが作成されると、同じ monitorUserId の他のセッションを削除する
+ * セッション作成時に、同じユーザーの同じカメラの古いセッションを disconnected に更新
+ * 削除ではなくステータス更新にすることで、カメラ側の処理と競合しない
+ * カメラの observeConnectedSessions は status==connected のみ返すため、更新により検知される
  */
 export const onSessionCreated = onDocumentCreated(
   {
@@ -134,24 +188,30 @@ export const onSessionCreated = onDocumentCreated(
         .where("monitorUserId", "==", monitorUserId)
         .get();
 
-      // 新しいセッション以外を削除
-      const docsToDelete = existingSessions.docs.filter(
+      // 新しいセッション以外を disconnected に更新（削除は競合を避けるため行わない）
+      const docsToUpdate = existingSessions.docs.filter(
         (doc: admin.firestore.QueryDocumentSnapshot) =>
           doc.id !== newSessionId
       );
 
-      if (docsToDelete.length > 0) {
-        const deletedCount = await deleteInBatches(
-          docsToDelete as admin.firestore.QueryDocumentSnapshot[]
-        );
+      if (docsToUpdate.length > 0) {
+        // Firestore batch上限（500件）に合わせてチャンク分割
+        for (let i = 0; i < docsToUpdate.length; i += BATCH_LIMIT) {
+          const chunk = docsToUpdate.slice(i, i + BATCH_LIMIT);
+          const batch = db.batch();
+          for (const doc of chunk) {
+            batch.update(doc.ref, {status: "disconnected"});
+          }
+          await batch.commit();
+        }
         console.log(
-          `onSessionCreated: Deleted ${deletedCount} old sessions ` +
+          `onSessionCreated: Updated ${docsToUpdate.length} old sessions to disconnected ` +
           `for user ${monitorUserId} in camera ${cameraId}`
         );
       }
     } catch (error) {
       console.error(
-        "onSessionCreated: Error deleting old sessions:", error
+        "onSessionCreated: Error updating old sessions:", error
       );
     }
   }

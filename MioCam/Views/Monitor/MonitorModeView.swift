@@ -131,10 +131,21 @@ struct MonitorModeView: View {
     
     // MARK: - カメラ一覧
     
+    /// 同じcameraIdの重複を排除（最も新しいpairedAtのリンクを優先）
+    private var uniquePairedCameras: [MonitorLinkModel] {
+        var seen: Set<String> = []
+        return viewModel.pairedCameras
+            .filter { link in
+                if seen.contains(link.cameraId) { return false }
+                seen.insert(link.cameraId)
+                return true
+            }
+    }
+    
     private var cameraListView: some View {
         ScrollView {
             LazyVStack(spacing: 12) {
-                ForEach(viewModel.pairedCameras, id: \.cameraId) { link in
+                ForEach(uniquePairedCameras, id: \.cameraId) { link in
                     let cameraStatus = viewModel.cameraStatuses[link.cameraId]
                     let isOnline = cameraStatus?.isOnline ?? false
                     let canSelect = link.isActive && isOnline

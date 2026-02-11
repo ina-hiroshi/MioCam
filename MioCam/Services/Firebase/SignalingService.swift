@@ -14,7 +14,6 @@ class SignalingService {
     
     private let db = FirestoreService.shared.db
     private var sessionListeners: [String: ListenerRegistration] = [:]
-    private var answerListeners: [String: ListenerRegistration] = [:]
     private var iceCandidateListeners: [String: ListenerRegistration] = [:]
     
     private init() {}
@@ -42,7 +41,8 @@ class SignalingService {
             "pairingCode": pairingCode,
             "offer": offer,
             "status": SessionModel.SessionStatus.waiting.rawValue,
-            "createdAt": FieldValue.serverTimestamp()
+            "createdAt": FieldValue.serverTimestamp(),
+            "lastHeartbeat": FieldValue.serverTimestamp()
         ]
         
         // displayNameが提供されている場合は追加
@@ -60,7 +60,17 @@ class SignalingService {
             .collection("sessions").document(sessionId)
             .updateData([
                 "answer": answer,
-                "status": SessionModel.SessionStatus.connected.rawValue
+                "status": SessionModel.SessionStatus.connected.rawValue,
+                "lastHeartbeat": FieldValue.serverTimestamp()
+            ])
+    }
+    
+    /// ハートビートを更新（モニター側: 30秒ごとに呼び出して接続生存を通知）
+    func updateHeartbeat(cameraId: String, sessionId: String) async throws {
+        try await db.collection("cameras").document(cameraId)
+            .collection("sessions").document(sessionId)
+            .updateData([
+                "lastHeartbeat": FieldValue.serverTimestamp()
             ])
     }
     
@@ -233,65 +243,35 @@ class SignalingService {
         return listener
     }
     
-    /// セッションのAnswerを取得（モニター側: 既存のAnswerを確認するため）
-    func getAnswer(cameraId: String, sessionId: String) async throws -> [String: Any]? {
-        let doc = try await db.collection("cameras").document(cameraId)
-            .collection("sessions").document(sessionId)
-            .getDocument()
-        
-        guard let data = doc.data(),
-              let answer = data["answer"] as? [String: Any] else {
-            return nil
-        }
-        
-        return answer
-    }
-    
-    /// セッションのAnswerを監視（モニター側）
-    func observeAnswer(cameraId: String, sessionId: String, completion: @escaping (Result<[String: Any]?, Error>) -> Void) -> ListenerRegistration {
+    /// セッションを監視（モニター側: Answer・音声設定を1つのリスナーで取得、DB読み取り削減）
+    func observeSessionForMonitor(
+        cameraId: String,
+        sessionId: String,
+        onAnswer: @escaping (Result<[String: Any]?, Error>) -> Void,
+        onSessionUpdate: @escaping (Result<[String: Any]?, Error>) -> Void
+    ) -> ListenerRegistration {
         let listener = db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)
             .addSnapshotListener { snapshot, error in
                 if let error = error {
-                    completion(.failure(error))
-                    return
-                }
-                
-                guard let snapshot = snapshot,
-                      let data = snapshot.data(),
-                      let answer = data["answer"] as? [String: Any] else {
-                    completion(.success(nil))
-                    return
-                }
-                
-                completion(.success(answer))
-            }
-        
-        let key = "\(cameraId)_\(sessionId)_answer"
-        answerListeners[key] = listener
-        return listener
-    }
-    
-    /// セッション全体を監視（モニター側: 音声設定変更を検知するため）
-    func observeSession(cameraId: String, sessionId: String, completion: @escaping (Result<[String: Any]?, Error>) -> Void) -> ListenerRegistration {
-        let listener = db.collection("cameras").document(cameraId)
-            .collection("sessions").document(sessionId)
-            .addSnapshotListener { snapshot, error in
-                if let error = error {
-                    completion(.failure(error))
+                    onAnswer(.failure(error))
+                    onSessionUpdate(.failure(error))
                     return
                 }
                 
                 guard let snapshot = snapshot,
                       let data = snapshot.data() else {
-                    completion(.success(nil))
+                    onAnswer(.success(nil))
+                    onSessionUpdate(.success(nil))
                     return
                 }
                 
-                completion(.success(data))
+                let answer = data["answer"] as? [String: Any]
+                onAnswer(.success(answer))
+                onSessionUpdate(.success(data))
             }
         
-        let key = "\(cameraId)_\(sessionId)_session"
+        let key = "\(cameraId)_\(sessionId)_monitor"
         sessionListeners[key] = listener
         return listener
     }
@@ -382,10 +362,8 @@ class SignalingService {
     /// 全ての監視を停止
     func stopAllObservers() {
         sessionListeners.values.forEach { $0.remove() }
-        answerListeners.values.forEach { $0.remove() }
         iceCandidateListeners.values.forEach { $0.remove() }
         sessionListeners.removeAll()
-        answerListeners.removeAll()
         iceCandidateListeners.removeAll()
     }
 }

@@ -113,16 +113,6 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
         let stateNames = ["new", "checking", "connected", "completed", "failed", "disconnected", "closed", "count"]
         let stateName = newState.rawValue < stateNames.count ? stateNames[Int(newState.rawValue)] : "unknown"
         print("WebRTC: ICE connection state changed: \(stateName) (\(newState.rawValue))")
-        DebugLogger.log(
-            hypothesisId: "H4",
-            location: "WebRTCClient.swift:didChangeIceState",
-            message: "ice_connection_state_changed",
-            data: [
-                "sessionId": sessionId,
-                "stateRaw": newState.rawValue,
-                "state": stateName
-            ]
-        )
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceGatheringState) {
@@ -130,17 +120,17 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {
-        print("WebRTC: Did generate ICE candidate (\(DebugLogger.candidateType(from: candidate.sdp)))")
-        DebugLogger.log(
-            hypothesisId: "H3",
-            location: "WebRTCClient.swift:didGenerateCandidate",
-            message: "ice_candidate_generated",
-            data: [
-                "sessionId": sessionId,
-                "candidateType": DebugLogger.candidateType(from: candidate.sdp)
-            ]
-        )
+        let typ = candidateType(from: candidate.sdp)
+        print("WebRTC: Did generate ICE candidate (\(typ))")
         delegate?.webRTCClient(self, didGenerateICECandidate: candidate)
+    }
+    
+    private func candidateType(from candidate: String) -> String {
+        let parts = candidate.split(separator: " ")
+        if let idx = parts.firstIndex(where: { $0 == "typ" }), idx + 1 < parts.count {
+            return String(parts[idx + 1])
+        }
+        return "unknown"
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didRemove candidates: [RTCIceCandidate]) {
@@ -155,16 +145,6 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
         let stateNames = ["new", "connecting", "connected", "disconnected", "failed", "closed"]
         let stateName = stateChanged.rawValue < stateNames.count ? stateNames[Int(stateChanged.rawValue)] : "unknown"
         print("WebRTC: Connection state changed: \(stateName) (\(stateChanged.rawValue))")
-        DebugLogger.log(
-            hypothesisId: "H4",
-            location: "WebRTCClient.swift:didChangeConnectionState",
-            message: "connection_state_changed",
-            data: [
-                "sessionId": sessionId,
-                "stateRaw": stateChanged.rawValue,
-                "state": stateName
-            ]
-        )
         delegate?.webRTCClient(self, didChangeConnectionState: stateChanged)
     }
 }

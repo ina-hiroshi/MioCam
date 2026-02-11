@@ -227,20 +227,8 @@ class CameraViewModel: ObservableObject {
     }
     
     /// 新規セッション（モニター接続）を監視
+    /// Firestoreスナップショットリスナーは初回で現在のwaitingセッションを返すため、observeNewSessionsのみで十分
     private func startObservingSessions(cameraId: String) {
-        
-        // 既存のwaitingセッションを即座に処理（監視開始前に作成されたセッションに対応）
-        Task { @MainActor in
-            do {
-                let existingSessions = try await signalingService.getWaitingSessions(cameraId: cameraId)
-                for session in existingSessions {
-                    await handleNewSession(session, cameraId: cameraId)
-                }
-            } catch {
-                print("既存セッション取得エラー: \(error.localizedDescription)")
-            }
-        }
-        
         sessionListener = signalingService.observeNewSessions(cameraId: cameraId) { [weak self] result in
             Task { @MainActor in
                 switch result {
@@ -277,15 +265,6 @@ class CameraViewModel: ObservableObject {
             // WebRTCでOfferを処理してAnswerを生成
             try await webRTCService.handleIncomingSession(sessionId: sessionId, offer: offer, monitorUserId: session.monitorUserId)
             
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "H1",
-                location: "CameraViewModel.swift:handleNewSession",
-                message: "camera_start_ice_observation",
-                data: ["sessionId": sessionId]
-            )
-            // #endregion
-            
             // モニター側からのICE Candidatesを監視（カメラ側）
             let listener = signalingService.observeICECandidates(
                 cameraId: cameraId,
@@ -295,25 +274,6 @@ class CameraViewModel: ObservableObject {
                     switch result {
                     case .success(let candidates):
                         let monitorCandidates = candidates.filter { $0.sender == .monitor }
-                        var typeCounts: [String: Int] = [:]
-                        for candidateModel in monitorCandidates {
-                            let candidateType = DebugLogger.candidateType(from: candidateModel.candidate)
-                            typeCounts[candidateType, default: 0] += 1
-                        }
-                        
-                        // #region agent log
-                        DebugLogger.log(
-                            hypothesisId: "H1",
-                            location: "CameraViewModel.swift:observeICECandidates",
-                            message: "camera_received_ice_candidates",
-                            data: [
-                                "sessionId": sessionId,
-                                "totalCount": candidates.count,
-                                "monitorCount": monitorCandidates.count,
-                                "typeCounts": typeCounts
-                            ]
-                        )
-                        // #endregion
                         
                         for candidateModel in monitorCandidates {
                             guard let iceCandidate = RTCIceCandidate.from(dict: [
@@ -331,17 +291,7 @@ class CameraViewModel: ObservableObject {
                             }
                         }
                     case .failure(let error):
-                        // #region agent log
-                        DebugLogger.log(
-                            hypothesisId: "H1",
-                            location: "CameraViewModel.swift:observeICECandidates",
-                            message: "camera_ice_observation_error",
-                            data: [
-                                "sessionId": sessionId,
-                                "error": error.localizedDescription
-                            ]
-                        )
-                        // #endregion
+                        print("セッションICE候補監視エラー: \(error.localizedDescription)")
                     }
                 }
             }
@@ -399,12 +349,40 @@ class CameraViewModel: ObservableObject {
             Task { @MainActor in
                 switch result {
                 case .success(let sessions):
+                    // ハートビートが古いセッションを検出（2分以上更新なし＝切断扱い）
+                    let heartbeatTimeoutSeconds: TimeInterval = 120
+                    let now = Date()
+                    var staleSessionIds: Set<String> = []
+                    let validSessions = sessions.filter { session in
+                        guard let sessionId = session.id, !sessionId.isEmpty else { return false }
+                        let heartbeat = session.lastHeartbeat ?? session.createdAt
+                        let elapsed = now.timeIntervalSince(heartbeat.dateValue())
+                        if elapsed > heartbeatTimeoutSeconds {
+                            staleSessionIds.insert(sessionId)
+                            return false
+                        }
+                        return true
+                    }
+                    
+                    // 古いセッションをFirestoreでdisconnectedに更新
+                    if !staleSessionIds.isEmpty, let cameraId = self?.cameraId {
+                        for sessionId in staleSessionIds {
+                            Task.detached {
+                                try? await SignalingService.shared.updateSessionStatus(
+                                    cameraId: cameraId,
+                                    sessionId: sessionId,
+                                    status: .disconnected
+                                )
+                            }
+                        }
+                    }
+                    
                     // 現在のconnectedMonitorsと比較して、削除されたセッションを検知
                     let currentSessionIds = Set(self?.connectedMonitors.map { $0.id } ?? [])
-                    let firestoreSessionIds = Set(sessions.map { $0.id ?? "" }.filter { !$0.isEmpty })
+                    let firestoreSessionIds = Set(validSessions.map { $0.id ?? "" }.filter { !$0.isEmpty })
                     
-                    // 削除されたセッション（Firestoreに存在しないが、connectedMonitorsに存在する）
-                    let removedSessionIds = currentSessionIds.subtracting(firestoreSessionIds)
+                    // 削除されたセッション（Firestoreに存在しない、またはハートビート切れ）
+                    let removedSessionIds = currentSessionIds.subtracting(firestoreSessionIds).union(staleSessionIds)
                     
                     if !removedSessionIds.isEmpty {
                         guard let cameraId = self?.cameraId else { return }
@@ -531,10 +509,10 @@ class CameraViewModel: ObservableObject {
         }
         
         // フレームレートチェック（ヒステリシス付き）
-        // 1080p → 720p: 20fps未満で切り替え（24fps未満でもビットレート調整で回復を試みる）
+        // 1080p → 720p: 15fps未満で切り替え（閾値緩和により1080p維持を優先）
         // 720p → 1080p: 26fps以上で戻す（頻繁な切り替えを防ぐ）
-        if currentQuality == .p1080p && bandwidthMetrics.averageFrameRate < 20.0 {
-            // フレームレートが20fps未満の場合は解像度を下げる
+        if currentQuality == .p1080p && bandwidthMetrics.averageFrameRate < 15.0 {
+            // フレームレートが15fps未満の場合は解像度を下げる
             return .p720p
         } else if currentQuality == .p720p && bandwidthMetrics.averageFrameRate >= 26.0 {
             // 720pから1080pに戻す条件: フレームレートが26fps以上かつ、2台以下接続
@@ -677,7 +655,7 @@ class CameraViewModel: ObservableObject {
                 webRTCService.adjustBitrateForFrameRate(for1080p: true, currentFrameRate: metrics.averageFrameRate)
                 
                 // それでもフレームレートが低い場合はバランス型に切り替え（解像度を下げてフレームレートを回復）
-                if metrics.averageFrameRate < 20.0 {
+                if metrics.averageFrameRate < 15.0 {
                     webRTCService.updateVideoEncodingBasedOnFrameRate(for1080p: true, currentFrameRate: metrics.averageFrameRate)
                     #if DEBUG
                     print("Frame rate too low (\(String(format: "%.1f", metrics.averageFrameRate))fps), switching to balanced degradation preference")
@@ -930,18 +908,6 @@ extension CameraViewModel: WebRTCServiceDelegate {
     nonisolated func webRTCService(_ service: WebRTCService, didGenerateICECandidate candidate: RTCIceCandidate, for sessionId: String) {
         Task { @MainActor in
             guard let cameraId = cameraId else { return }
-            
-            // #region agent log
-            DebugLogger.log(
-                hypothesisId: "H3",
-                location: "CameraViewModel.swift:didGenerateICECandidate",
-                message: "camera_send_ice_candidate",
-                data: [
-                    "sessionId": sessionId,
-                    "candidateType": DebugLogger.candidateType(from: candidate.sdp)
-                ]
-            )
-            // #endregion
             
             do {
                 try await signalingService.addICECandidate(
