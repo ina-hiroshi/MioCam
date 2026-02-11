@@ -23,6 +23,7 @@ struct MioCamApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(authService)
+                .environmentObject(SubscriptionService.shared)
                 .preferredColorScheme(.light)
         }
     }
@@ -31,7 +32,8 @@ struct MioCamApp: App {
 /// メインコンテンツビュー（認証状態に応じて画面を切り替え）
 struct ContentView: View {
     @EnvironmentObject var authService: AuthenticationService
-    
+    @EnvironmentObject var subscriptionService: SubscriptionService
+
     var body: some View {
         Group {
             if authService.isAuthenticated {
@@ -40,13 +42,21 @@ struct ContentView: View {
                 SignInWithAppleView()
             }
         }
+        .onChange(of: authService.currentUser?.uid) { newUserId in
+            subscriptionService.startObserving(userId: newUserId)
+        }
+        .task {
+            subscriptionService.startObserving(userId: authService.currentUser?.uid)
+        }
     }
 }
 
 /// 役割選択画面
 struct RoleSelectionView: View {
     @EnvironmentObject var authService: AuthenticationService
-    
+    @EnvironmentObject var subscriptionService: SubscriptionService
+    @State private var showAppSettings = false
+
     enum AppRole {
         case camera
         case monitor
@@ -156,6 +166,20 @@ struct RoleSelectionView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.mioPrimary.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        showAppSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+            }
+            .sheet(isPresented: $showAppSettings) {
+                AppSettingsSheet()
+                    .environmentObject(authService)
+                    .environmentObject(subscriptionService)
+            }
             .navigationDestination(for: AppRole.self) { role in
                 switch role {
                 case .camera:

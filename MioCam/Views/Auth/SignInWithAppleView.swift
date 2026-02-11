@@ -34,7 +34,7 @@ struct SignInWithAppleView: View {
             
             // 説明テキスト
             VStack(spacing: 12) {
-                Text("iPhoneを、世界一シンプルな見守り窓に。")
+                Text("お手持ちの端末を、世界一シンプルな見守り窓に。")
                     .font(.system(.title3, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(.mioTextPrimary)

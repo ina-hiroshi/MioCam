@@ -70,6 +70,18 @@ class WebRTCClient: NSObject {
             return candidates
         }
     }
+    
+    /// transceivers からリモートトラックを取得（Unified Plan・フォールバック用）
+    /// setRemoteDescription 後にデリゲートが呼ばれない場合に使用
+    func extractRemoteTracksFromTransceivers() {
+        for transceiver in peerConnection.transceivers {
+            guard let track = transceiver.receiver.track else { continue }
+            // 既に取得済みの場合はスキップ（ビデオ・オーディオそれぞれ1本まで）
+            if track is RTCVideoTrack, remoteVideoTrack != nil { continue }
+            if track is RTCAudioTrack, remoteAudioTrack != nil { continue }
+            handleRemoteTrack(track)
+        }
+    }
 }
 
 // MARK: - RTCPeerConnectionDelegate
@@ -79,25 +91,62 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
         print("WebRTC: Signaling state changed: \(stateChanged.rawValue)")
     }
     
+    /// Plan B セマンティクス用（Unified Plan では呼ばれない）
     func peerConnection(_ peerConnection: RTCPeerConnection, didAdd stream: RTCMediaStream) {
-        print("WebRTC: Did add stream: \(stream.streamId)")
-        
-        // リモートビデオトラックを取得
+        print("WebRTC: Did add stream (Plan B): \(stream.streamId)")
+        handleRemoteTracksFromStream(stream)
+    }
+    
+    /// Unified Plan 用：リモートトラック受信時（RTCSdpSemanticsUnifiedPlan でのみ呼ばれる）
+    func peerConnection(_ peerConnection: RTCPeerConnection, didAdd rtpReceiver: RTCRtpReceiver, streams mediaStreams: [RTCMediaStream]) {
+        print("WebRTC: Did add receiver (Unified Plan), trackKind=\(rtpReceiver.track?.kind ?? "nil")")
+        if let track = rtpReceiver.track {
+            handleRemoteTrack(track)
+        }
+    }
+    
+    /// Unified Plan 用：トランシーバーが受信開始した時（didAddReceiver の代替で呼ばれる場合あり）
+    func peerConnection(_ peerConnection: RTCPeerConnection, didStartReceivingOn transceiver: RTCRtpTransceiver) {
+        print("WebRTC: Did start receiving on transceiver (Unified Plan), mediaType=\(transceiver.mediaType.rawValue)")
+        if let track = transceiver.receiver.track {
+            handleRemoteTrack(track)
+        }
+    }
+    
+    /// didAdd stream（Plan B）からトラックを処理
+    private func handleRemoteTracksFromStream(_ stream: RTCMediaStream) {
         if let videoTrack = stream.videoTracks.first {
             remoteVideoTrack = videoTrack
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.delegate?.webRTCClient(self, didReceiveRemoteVideoTrack: videoTrack)
-            }
+            notifyRemoteVideoTrack(videoTrack)
         }
-        
-        // リモートオーディオトラックを取得
         if let audioTrack = stream.audioTracks.first {
             remoteAudioTrack = audioTrack
-            DispatchQueue.main.async { [weak self] in
-                guard let self = self else { return }
-                self.delegate?.webRTCClient(self, didReceiveRemoteAudioTrack: audioTrack)
-            }
+            notifyRemoteAudioTrack(audioTrack)
+        }
+    }
+    
+    /// 単一トラックを処理（Unified Plan の didAddReceiver 用）
+    private func handleRemoteTrack(_ track: RTCMediaStreamTrack) {
+        if let videoTrack = track as? RTCVideoTrack {
+            remoteVideoTrack = videoTrack
+            notifyRemoteVideoTrack(videoTrack)
+        } else if let audioTrack = track as? RTCAudioTrack {
+            remoteAudioTrack = audioTrack
+            notifyRemoteAudioTrack(audioTrack)
+        }
+    }
+    
+    private func notifyRemoteVideoTrack(_ track: RTCVideoTrack) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.webRTCClient(self, didReceiveRemoteVideoTrack: track)
+        }
+    }
+    
+    private func notifyRemoteAudioTrack(_ track: RTCAudioTrack) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.delegate?.webRTCClient(self, didReceiveRemoteAudioTrack: track)
         }
     }
     
@@ -145,6 +194,10 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
         let stateNames = ["new", "connecting", "connected", "disconnected", "failed", "closed"]
         let stateName = stateChanged.rawValue < stateNames.count ? stateNames[Int(stateChanged.rawValue)] : "unknown"
         print("WebRTC: Connection state changed: \(stateName) (\(stateChanged.rawValue))")
+        // 接続完了時にトラックがまだ無い場合は transceivers から取得（Unified Plan フォールバック）
+        if stateChanged == .connected && (remoteVideoTrack == nil || remoteAudioTrack == nil) {
+            extractRemoteTracksFromTransceivers()
+        }
         delegate?.webRTCClient(self, didChangeConnectionState: stateChanged)
     }
 }

@@ -22,10 +22,10 @@
 	<string>2</string>
 	<key>NSCameraUsageDescription</key>
 	<string>MioCamは見守りカメラとして映像を配信するためにカメラへのアクセスが必要です。</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>MioCamは双方向音声通話機能（Phase 3）でマイクへのアクセスが必要です。</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>MioCamはカメラとモニター間のリアルタイム映像通信のためにローカルネットワークへのアクセスが必要です。</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>MioCamは双方向音声通話機能（Phase 3）でマイクへのアクセスが必要です。</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

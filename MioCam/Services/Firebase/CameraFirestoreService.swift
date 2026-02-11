@@ -41,6 +41,11 @@ class CameraFirestoreService {
         userDefaults.removeObject(forKey: key)
     }
     
+    /// アカウント削除時にUserDefaultsからカメラIDをクリア（AccountDeletionService用）
+    func clearSavedCameraIdForDeletion(ownerUserId: String) {
+        removeSavedCameraId(ownerUserId: ownerUserId)
+    }
+    
     /// 既存のカメラを取得（UserDefaultsからcameraIdを取得してFirestoreから読み込む）
     func getExistingCamera(ownerUserId: String) async throws -> CameraModel? {
         guard let savedCameraId = getSavedCameraId(ownerUserId: ownerUserId) else {

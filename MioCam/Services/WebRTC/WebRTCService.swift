@@ -239,6 +239,11 @@ class WebRTCService: NSObject {
             throw error
         }
         
+        // Unified Plan: デリゲートが呼ばれない場合のフォールバック - transceivers からトラックを取得
+        if client.remoteVideoTrack == nil || client.remoteAudioTrack == nil {
+            client.extractRemoteTracksFromTransceivers()
+        }
+        
         // remote description設定後、キューに溜まったICE Candidateを同期的に即座に処理
         // （タイミング問題: ICE候補はAnswerより先に届くため、キューに溜まっている）
         let pendingCandidates = client.drainPendingCandidates()

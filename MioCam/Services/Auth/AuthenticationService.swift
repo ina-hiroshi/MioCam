@@ -19,7 +19,8 @@ class AuthenticationService: NSObject, ObservableObject {
     
     @Published var currentUser: User?
     @Published var isAuthenticated: Bool = false
-    
+    @Published var displayName: String?
+
     private lazy var auth: Auth = Auth.auth()
     private lazy var db: Firestore = FirestoreService.shared.db
     private var authStateListener: AuthStateDidChangeListenerHandle?
@@ -42,8 +43,33 @@ class AuthenticationService: NSObject, ObservableObject {
             Task { @MainActor in
                 self?.currentUser = user
                 self?.isAuthenticated = user != nil
+                if let userId = user?.uid {
+                    await self?.loadDisplayName(userId: userId)
+                } else {
+                    self?.displayName = nil
+                }
             }
         }
+    }
+
+    /// Firestore から displayName を取得
+    private func loadDisplayName(userId: String) async {
+        do {
+            let doc = try await db.collection("users").document(userId).getDocument()
+            displayName = doc.data()?["displayName"] as? String
+        } catch {
+            #if DEBUG
+            print("AuthenticationService: displayName 取得エラー \(error.localizedDescription)")
+            #endif
+            displayName = nil
+        }
+    }
+
+    /// ユーザー名を更新
+    func updateDisplayName(_ name: String) async throws {
+        guard let userId = currentUser?.uid else { return }
+        try await db.collection("users").document(userId).updateData(["displayName": name])
+        displayName = name
     }
     
     /// SignInWithAppleButtonから取得済みのASAuthorizationを使ってFirebase認証を行う
@@ -85,7 +111,28 @@ class AuthenticationService: NSObject, ObservableObject {
     func signOut() throws {
         try auth.signOut()
     }
-    
+
+    /// アカウントを削除（再認証必須。Sign in with Apple で取得した authorization を渡す）
+    func deleteAccount(authorization: ASAuthorization) async throws {
+        guard let user = auth.currentUser else {
+            throw NSError(domain: "AuthenticationService", code: -1, userInfo: [NSLocalizedDescriptionKey: "サインインしていません"])
+        }
+
+        let appleIDCredential = authorization.credential as? ASAuthorizationAppleIDCredential
+        let idTokenString = appleIDCredential?.identityToken.flatMap { String(data: $0, encoding: .utf8) }
+
+        guard let idTokenString = idTokenString else {
+            throw NSError(domain: "AuthenticationService", code: -1, userInfo: [NSLocalizedDescriptionKey: "認証情報の取得に失敗しました"])
+        }
+
+        let credential = OAuthProvider.credential(providerID: AuthProviderID.apple, idToken: idTokenString, rawNonce: "")
+        try await user.reauthenticate(with: credential)
+
+        let userId = user.uid
+        try await AccountDeletionService.shared.deleteAllUserData(userId: userId)
+        try await user.delete()
+    }
+
     deinit {
         if let listener = authStateListener {
             Auth.auth().removeStateDidChangeListener(listener)
