@@ -268,10 +268,16 @@ class WebRTCService: NSObject {
         // remote descriptionが設定されていない場合はキューに保存
         guard client.peerConnection.remoteDescription != nil else {
             client.addPendingCandidate(candidate)
+            #if DEBUG
+            print("WebRTCService: ICE候補キューイング - \(candidate.sdp.prefix(80))")
+            #endif
             return
         }
         
         try await client.peerConnection.add(candidate)
+        #if DEBUG
+        print("WebRTCService: ICE候補追加成功 - \(candidate.sdp.prefix(80))")
+        #endif
     }
     
     /// キューに溜まったICE Candidateを処理（remote description設定後に呼び出す）
@@ -306,11 +312,9 @@ class WebRTCService: NSObject {
         client.peerConnection.delegate = nil
         client.delegate = nil
         
-        // peerConnection.close()はICE交渉中にメインスレッドをブロックする可能性があるため
-        // バックグラウンドスレッドで実行する
-        DispatchQueue.global(qos: .userInitiated).async {
-            client.peerConnection.close()
-        }
+        // 同期実行に戻す（バックグラウンド実行だと共有シグナリングスレッドでレースが発生し、
+        // 次の接続の setRemoteDescription/add(candidate) のコールバックがハングする）
+        client.peerConnection.close()
     }
     
     /// すべてのセッションを終了
@@ -322,12 +326,7 @@ class WebRTCService: NSObject {
         for (_, client) in clientsCopy {
             client.peerConnection.delegate = nil
             client.delegate = nil
-        }
-        
-        DispatchQueue.global(qos: .userInitiated).async {
-            for (_, client) in clientsCopy {
-                client.peerConnection.close()
-            }
+            client.peerConnection.close()
         }
     }
     

@@ -46,6 +46,7 @@ targets:
         UILaunchScreen: {}
         NSCameraUsageDescription: "MioCamは見守りカメラとして映像を配信するためにカメラへのアクセスが必要です。"
         NSMicrophoneUsageDescription: "MioCamは双方向音声通話機能（Phase 3）でマイクへのアクセスが必要です。"
+        NSLocalNetworkUsageDescription: "MioCamはカメラとモニター間のリアルタイム映像通信のためにローカルネットワークへのアクセスが必要です。"
         UIBackgroundModes:
           - audio
         UIRequiresFullScreen: true

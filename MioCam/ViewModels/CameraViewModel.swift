@@ -274,6 +274,12 @@ class CameraViewModel: ObservableObject {
                     switch result {
                     case .success(let candidates):
                         let monitorCandidates = candidates.filter { $0.sender == .monitor }
+                        #if DEBUG
+                        print("Camera: モニターICE候補受信 - モニター側:\(monitorCandidates.count)件")
+                        for c in monitorCandidates {
+                            print("Camera: 候補内容 - \(String(c.candidate.prefix(120)))")
+                        }
+                        #endif
                         
                         for candidateModel in monitorCandidates {
                             guard let iceCandidate = RTCIceCandidate.from(dict: [
@@ -907,6 +913,9 @@ extension CameraViewModel: WebRTCServiceDelegate {
     
     nonisolated func webRTCService(_ service: WebRTCService, didGenerateICECandidate candidate: RTCIceCandidate, for sessionId: String) {
         Task { @MainActor in
+            #if DEBUG
+            print("Camera: ICE候補生成・送信 - \(candidate.sdp.prefix(100))")
+            #endif
             guard let cameraId = cameraId else { return }
             
             do {

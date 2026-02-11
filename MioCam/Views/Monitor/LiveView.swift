@@ -817,6 +817,17 @@ struct LiveView: View {
                 displayName: displayName
             )
             
+            // 同じユーザーの古いセッションを削除（蓄積によるリソース圧迫を防止）
+            do {
+                try await signalingService.deleteExistingSessionsForUser(
+                    cameraId: cameraLink.cameraId,
+                    monitorUserId: monitorUserId,
+                    excludeSessionId: sessionId
+                )
+            } catch {
+                print("古いセッション削除エラー: \(error.localizedDescription)")
+            }
+            
             // 3. セッション監視（Answer・音声設定を1リスナーで取得、DB読み取り削減）
             sessionMonitorListener = signalingService.observeSessionForMonitor(
                 cameraId: cameraLink.cameraId,
@@ -913,6 +924,12 @@ struct LiveView: View {
         switch result {
         case .success(let candidates):
             let cameraCandidates = candidates.filter { $0.sender == .camera }
+            #if DEBUG
+            print("Monitor: カメラICE候補受信 - カメラ側:\(cameraCandidates.count)件")
+            for c in cameraCandidates {
+                print("Monitor: 候補内容 - \(String(c.candidate.prefix(120)))")
+            }
+            #endif
             
             for candidateModel in cameraCandidates {
                 guard let iceCandidate = RTCIceCandidate.from(dict: [
