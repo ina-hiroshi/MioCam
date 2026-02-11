@@ -20,6 +20,10 @@ struct BlackoutView: View {
     @State private var showSettings = false
     @State private var showSettingsIcon = false
     @State private var originalBrightness: CGFloat = 0.5
+    @State private var hideIconTask: Task<Void, Never>?
+    
+    /// アイコンを表示してから自動で非表示にするまでの秒数
+    private let iconAutoHideSeconds: UInt64 = 3
     
     var body: some View {
         NavigationStack {
@@ -55,10 +59,19 @@ struct BlackoutView: View {
                     showSettingsIcon = true
                 }
             }
+        .onChange(of: showSettingsIcon) { isVisible in
+            if isVisible {
+                scheduleIconAutoHide()
+            } else {
+                hideIconTask?.cancel()
+                hideIconTask = nil
+            }
+        }
         .onAppear {
             enterBlackoutMode()
         }
         .onDisappear {
+            hideIconTask?.cancel()
             exitBlackoutMode()
         }
         .sheet(isPresented: $showSettings) {
@@ -73,6 +86,22 @@ struct BlackoutView: View {
     }
     
     // MARK: - ブラックアウトモード制御
+    
+    /// 設定アイコンを一定時間後に自動で非表示にする
+    private func scheduleIconAutoHide() {
+        hideIconTask?.cancel()
+        hideIconTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: iconAutoHideSeconds * 1_000_000_000)
+                if !Task.isCancelled {
+                    showSettingsIcon = false
+                }
+            } catch {
+                // キャンセル時は何もしない
+            }
+            hideIconTask = nil
+        }
+    }
     
     private func enterBlackoutMode() {
         // 現在の輝度を保存

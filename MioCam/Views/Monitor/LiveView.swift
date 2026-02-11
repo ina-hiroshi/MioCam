@@ -8,7 +8,6 @@
 import SwiftUI
 import WebRTC
 import FirebaseFirestore
-import AudioToolbox
 
 /// ライブビュー画面
 struct LiveView: View {
@@ -46,7 +45,6 @@ struct LiveView: View {
     @State private var reconnectAttempt = 0
     @State private var reconnectTask: Task<Void, Never>?
     @State private var hasEverConnected = false  // 一度でも接続に成功したか
-    @State private var hasPlayedDisconnectionSound = false
     @State private var hasReceivedAnswer = false  // Answerを既に受信・設定済みか
     @State private var connectedUsers: [String] = []  // 接続中のユーザー名リスト
     @State private var connectedSessionsListener: ListenerRegistration?
@@ -536,6 +534,8 @@ struct LiveView: View {
             iceCandidateListener = nil
             connectedSessionsListener?.remove()
             connectedSessionsListener = nil
+            cameraListener?.remove()
+            cameraListener = nil
             webRTCService.closeSession(sessionId: oldSessionId)
         }
         
@@ -1044,16 +1044,6 @@ struct LiveView: View {
         webRTCService.setMonitorMicEnabled(sessionId: sessionId, enabled: false)
     }
     
-    private func playDisconnectionSound() {
-        if let soundURL = Bundle.main.url(forResource: "disconnection_sound", withExtension: "caf") {
-            var soundID: SystemSoundID = 0
-            AudioServicesCreateSystemSoundID(soundURL as CFURL, &soundID)
-            AudioServicesPlaySystemSound(soundID)
-        } else {
-            AudioServicesPlaySystemSound(1007)
-        }
-    }
-    
     func handleConnectionStateChange(_ state: WebRTCConnectionState, sessionId: String) {
         // セッションIDが一致しているか確認
         guard sessionId == self.sessionId else {
@@ -1067,7 +1057,6 @@ struct LiveView: View {
             connectionError = nil
             connectionTimedOut = false
             hasEverConnected = true
-            hasPlayedDisconnectionSound = false
             reconnectAttempt = 0
             // タイムアウトタスクをキャンセル
             connectionTimeoutTask?.cancel()
@@ -1084,13 +1073,6 @@ struct LiveView: View {
                 startObservingConnectedSessions(cameraId: cameraLink.cameraId, currentSessionId: currentSessionId)
             }
         case .disconnected, .failed:
-            if hasEverConnected && !hasPlayedDisconnectionSound {
-                hasPlayedDisconnectionSound = true
-                // WebRTCコールバック外で再生して音声セッション競合を避ける
-                DispatchQueue.main.async { [self] in
-                    self.playDisconnectionSound()
-                }
-            }
             // ハートビートを停止
             heartbeatTask?.cancel()
             heartbeatTask = nil
@@ -1142,16 +1124,11 @@ struct LiveView: View {
                 }
             }
         case .closed:
-            if hasEverConnected && !hasPlayedDisconnectionSound {
-                hasPlayedDisconnectionSound = true
-                DispatchQueue.main.async { [self] in
-                    self.playDisconnectionSound()
-                }
+            // 再接続中でない場合のみ状態をリセット
+            if reconnectTask == nil {
+                isConnecting = false
+                isReconnecting = false
             }
-            // 明示的に閉じた場合は再接続しない
-            isConnecting = false
-            isReconnecting = false
-            // タイムアウトタスクをキャンセル
             connectionTimeoutTask?.cancel()
             connectionTimeoutTask = nil
         case .connecting:
@@ -1193,7 +1170,7 @@ struct LiveView: View {
         cameraListener?.remove()
         cameraListener = nil
         
-        // WebRTCセッションを終了（delegateはclose後にクリアし、.closedコールバックで切断音を再生できるようにする）
+        // WebRTCセッションを終了
         let sessionIdToCleanup = sessionId
         if let sid = sessionIdToCleanup {
             webRTCService.closeSession(sessionId: sid)
@@ -1211,8 +1188,6 @@ struct LiveView: View {
             }
         }
         
-        // .closedコールバックで切断音が再生されるまで少し待ってからデリゲートをクリア
-        try? await Task.sleep(nanoseconds: 150_000_000) // 0.15秒
         webRTCService.delegate = nil
         webRTCDelegate = nil
         

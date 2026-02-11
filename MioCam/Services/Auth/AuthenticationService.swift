@@ -68,11 +68,17 @@ class AuthenticationService: NSObject, ObservableObject {
     private func createOrUpdateUserDocument(userId: String, appleUserId: String, displayName: String?) async throws {
         let userRef = db.collection("users").document(userId)
         
-        try await userRef.setData([
+        var data: [String: Any] = [
             "appleUserId": appleUserId,
-            "displayName": displayName ?? "",
             "createdAt": FieldValue.serverTimestamp()
-        ], merge: true)
+        ]
+        // Apple は初回認証時のみ fullName を返す。再ログイン時は nil のため、
+        // 既存の displayName を上書きしない（nil/空の場合はフィールドを追加しない）
+        if let displayName = displayName, !displayName.isEmpty {
+            data["displayName"] = displayName
+        }
+        
+        try await userRef.setData(data, merge: true)
     }
     
     /// サインアウト
