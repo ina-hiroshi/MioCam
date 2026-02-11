@@ -232,6 +232,14 @@ private struct CameraListRow: View {
                     Text(isOnline ? "オンライン" : "オフライン")
                         .font(.system(.caption))
                         .foregroundColor(isOnline ? .mioSuccess : .mioError)
+                    
+                    if isOnline, let count = cameraStatus?.connectedMonitorCount {
+                        Text("・")
+                            .foregroundColor(.mioTextSecondary)
+                        Text("\(count)台接続中")
+                            .font(.system(.caption))
+                            .foregroundColor(.mioTextSecondary)
+                    }
                 }
             }
             
