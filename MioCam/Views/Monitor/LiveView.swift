@@ -303,35 +303,32 @@ struct LiveView: View {
         VStack {
             // 上部ステータスバー
             HStack {
-                // 接続状態バッジ
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(cameraInfo?.isOnline == true ? Color.mioSuccess : Color.mioError)
-                        .frame(width: 8, height: 8)
-                    
-                    if cameraInfo?.isOnline == true {
-                        // 接続中のユーザー名を表示
-                        if connectedUsers.isEmpty {
-                            Text("接続中")
-                                .font(.system(.caption))
-                                .fontWeight(.medium)
-                        } else {
-                            Text(connectedUsers.joined(separator: " "))
-                                .font(.system(.caption))
-                                .fontWeight(.medium)
+                // 接続状態バッジ（オンライン時のみ、1ユーザー1バッジの列）
+                if cameraInfo?.isOnline == true {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(Color.mioSuccess)
+                                .frame(width: 8, height: 8)
+                                .padding(6)
+                                .background(
+                                    Capsule()
+                                        .fill(.ultraThinMaterial)
+                                )
+                            ForEach(Array(connectedUsers.enumerated()), id: \.offset) { _, name in
+                                Text(name)
+                                    .font(.system(.caption))
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule()
+                                            .fill(.ultraThinMaterial)
+                                    )
+                            }
                         }
-                    } else {
-                        Text("オフライン")
-                            .font(.system(.caption))
-                            .fontWeight(.medium)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(.ultraThinMaterial)
-                )
                 
                 Spacer()
                 
