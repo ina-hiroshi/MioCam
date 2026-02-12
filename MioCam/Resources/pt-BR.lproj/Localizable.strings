@@ -1,5 +1,9 @@
 /* LiveView */
 "live_view_title" = "Visualização ao vivo";
+"end_monitor_title" = "Encerrar monitor?";
+"end_monitor_message" = "Encerrar o monitor desconectará da câmera.";
+"continue" = "Continuar";
+"end_monitor" = "Encerrar";
 "connection_error" = "Erro de conexão";
 "connection_timeout" = "Conexão expirou";
 "reconnecting" = "Reconectando...";

@@ -1,5 +1,9 @@
 /* LiveView */
 "live_view_title" = "Live View";
+"end_monitor_title" = "End monitor?";
+"end_monitor_message" = "Ending the monitor will disconnect from the camera.";
+"continue" = "Continue";
+"end_monitor" = "End";
 "connection_error" = "Connection Error";
 "connection_timeout" = "Connection timed out";
 "reconnecting" = "Reconnecting...";

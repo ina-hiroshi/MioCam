@@ -1,5 +1,9 @@
 /* LiveView */
 "live_view_title" = "ライブビュー";
+"end_monitor_title" = "モニターを終了しますか？";
+"end_monitor_message" = "モニターを終了すると、カメラとの接続が切断されます。";
+"continue" = "続ける";
+"end_monitor" = "終了する";
 "connection_error" = "接続エラー";
 "connection_timeout" = "接続がタイムアウトしました";
 "reconnecting" = "再接続中...";

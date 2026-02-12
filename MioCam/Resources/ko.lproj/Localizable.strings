@@ -1,5 +1,9 @@
 /* LiveView */
 "live_view_title" = "라이브 뷰";
+"end_monitor_title" = "모니터를 종료하시겠습니까?";
+"end_monitor_message" = "모니터를 종료하면 카메라와의 연결이 끊어집니다.";
+"continue" = "계속";
+"end_monitor" = "종료";
 "connection_error" = "연결 오류";
 "connection_timeout" = "연결 시간 초과";
 "reconnecting" = "재연결 중...";

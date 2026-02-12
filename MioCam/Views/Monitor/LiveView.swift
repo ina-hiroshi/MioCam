@@ -55,6 +55,7 @@ struct LiveView: View {
     @State private var connectedSessionsListener: ListenerRegistration?
     @State private var userDisplayNameCache: [String: String] = [:]  // ユーザーID -> displayNameのキャッシュ
     @State private var hasCleanedUp = false  // 二重クリーンアップ防止
+    @State private var showEndMonitorConfirmation = false
     
     private let maxReconnectAttempts = 5
     
@@ -195,12 +196,8 @@ struct LiveView: View {
         }
         .alert(String(localized: "connection_error"), isPresented: $showOfflineAlert) {
             Button("OK") {
-                Task {
-                    await performCleanup()
-                    await MainActor.run {
-                        onDismiss?() ?? dismiss()
-                    }
-                }
+                // 即座に閉じる。クリーンアップはonDisappearでバックグラウンド実行
+                onDismiss?() ?? dismiss()
             }
         } message: {
             if let message = offlineMessage {
@@ -213,6 +210,15 @@ struct LiveView: View {
                 showOfflineAlert = true
             }
         }
+        .alert(String(localized: "end_monitor_title"), isPresented: $showEndMonitorConfirmation) {
+            Button(String(localized: "continue"), role: .cancel) {}
+            Button(String(localized: "end_monitor"), role: .destructive) {
+                // 即座に閉じてUXを向上。クリーンアップはonDisappearでバックグラウンド実行
+                onDismiss?() ?? dismiss()
+            }
+        } message: {
+            Text(String(localized: "end_monitor_message"))
+        }
     }
     
     // MARK: - 接続中オーバーレイ
@@ -223,12 +229,7 @@ struct LiveView: View {
             VStack {
                 HStack {
                     Button {
-                        Task {
-                            await performCleanup()
-                            await MainActor.run {
-                                onDismiss?() ?? dismiss()
-                            }
-                        }
+                        showEndMonitorConfirmation = true
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .semibold))
@@ -463,12 +464,7 @@ struct LiveView: View {
                 
                 // 閉じるボタン
                 Button {
-                    Task {
-                        await performCleanup()
-                        await MainActor.run {
-                            onDismiss?() ?? dismiss()
-                        }
-                    }
+                    showEndMonitorConfirmation = true
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 16, weight: .bold))
