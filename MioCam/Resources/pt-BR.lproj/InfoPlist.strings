@@ -1,0 +1,8 @@
+/* Privacy - Camera */
+"NSCameraUsageDescription" = "O MioCam precisa de acesso à câmera para transmitir vídeo como câmera de cuidado.";
+
+/* Privacy - Microphone */
+"NSMicrophoneUsageDescription" = "O MioCam precisa de acesso ao microfone para áudio bidirecional (Fase 3).";
+
+/* Privacy - Local Network */
+"NSLocalNetworkUsageDescription" = "O MioCam precisa de acesso à rede local para vídeo em tempo real entre câmera e monitor.";

@@ -51,7 +51,7 @@ struct BlackoutView: View {
                     .buttonStyle(.plain)
                 }
             }
-            .navigationTitle(viewModel.deviceName.isEmpty ? "カメラ" : viewModel.deviceName)
+            .navigationTitle(viewModel.deviceName.isEmpty ? String(localized: "camera") : viewModel.deviceName)
             .navigationBarTitleDisplayMode(.inline)
             .contentShape(Rectangle())
             .onTapGesture {

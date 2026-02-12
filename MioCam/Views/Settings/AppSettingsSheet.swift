@@ -23,8 +23,8 @@ struct AppSettingsSheet: View {
         NavigationStack {
             List {
                 // ユーザー名
-                Section(header: Text("ユーザー名")) {
-                    TextField("表示名を入力", text: $displayNameInput)
+                Section(header: Text(String(localized: "user_name"))) {
+                    TextField(String(localized: "display_name_placeholder"), text: $displayNameInput)
                         .textContentType(.username)
                         .autocapitalization(.words)
                         .disabled(isSavingDisplayName)
@@ -44,7 +44,7 @@ struct AppSettingsSheet: View {
                                 ProgressView()
                                     .scaleEffect(0.8)
                             } else {
-                                Text("保存")
+                                Text(String(localized: "save"))
                                     .fontWeight(.semibold)
                             }
                             Spacer()
@@ -58,15 +58,15 @@ struct AppSettingsSheet: View {
                     Button(role: .destructive) {
                         showDeleteAccountConfirmation = true
                     } label: {
-                        Text("アカウントを削除")
+                        Text(String(localized: "delete_account"))
                     }
                 }
             }
-            .navigationTitle("設定")
+            .navigationTitle(String(localized: "settings_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") {
+                    Button(String(localized: "done")) {
                         dismiss()
                     }
                 }
@@ -77,13 +77,13 @@ struct AppSettingsSheet: View {
             .onChange(of: authService.displayName) { newValue in
                 displayNameInput = newValue ?? ""
             }
-            .alert("アカウントを削除", isPresented: $showDeleteAccountConfirmation) {
-                Button("キャンセル", role: .cancel) {}
-                Button("削除する", role: .destructive) {
+            .alert(String(localized: "delete_account"), isPresented: $showDeleteAccountConfirmation) {
+                Button(String(localized: "cancel"), role: .cancel) {}
+                Button(String(localized: "delete_confirm"), role: .destructive) {
                     showDeleteAccountReauth = true
                 }
             } message: {
-                Text("アカウントとデータは完全に削除され、元に戻せません。削除しますか？")
+                Text(String(localized: "delete_account_confirm"))
             }
             .sheet(isPresented: $showDeleteAccountReauth) {
                 DeleteAccountReauthSheet()
@@ -101,7 +101,7 @@ struct AppSettingsSheet: View {
     private func saveDisplayName() {
         let name = displayNameInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else {
-            displayNameError = "名前を入力してください"
+            displayNameError = String(localized: "display_name_required")
             return
         }
 

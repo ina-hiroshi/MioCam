@@ -1,0 +1,8 @@
+/* Privacy - Camera */
+"NSCameraUsageDescription" = "MioCam은 케어 카메라로 영상을 스트리밍하기 위해 카메라 액세스가 필요합니다.";
+
+/* Privacy - Microphone */
+"NSMicrophoneUsageDescription" = "MioCam은 양방향 오디오(3단계)를 위해 마이크 액세스가 필요합니다.";
+
+/* Privacy - Local Network */
+"NSLocalNetworkUsageDescription" = "MioCam은 카메라와 모니터 간 실시간 영상을 위해 로컬 네트워크 액세스가 필요합니다.";

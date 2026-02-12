@@ -38,7 +38,7 @@ struct CameraModeView: View {
             // コンテンツオーバーレイ
             contentOverlay
         }
-        .navigationTitle(viewModel.deviceName.isEmpty ? "カメラ" : viewModel.deviceName)
+        .navigationTitle(viewModel.deviceName.isEmpty ? String(localized: "camera") : viewModel.deviceName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -74,7 +74,7 @@ struct CameraModeView: View {
         .onDisappear {
             captureService.stopCapture()
         }
-        .alert("エラー", isPresented: $showError) {
+        .alert(String(localized: "error"), isPresented: $showError) {
             Button("OK") {
                 viewModel.errorMessage = nil
                 showError = false
@@ -84,15 +84,15 @@ struct CameraModeView: View {
                 Text(msg)
             }
         }
-        .alert("カメラへのアクセス", isPresented: $cameraPermissionDenied) {
-            Button("設定を開く") {
+        .alert(String(localized: "camera_access_alert_title"), isPresented: $cameraPermissionDenied) {
+            Button(String(localized: "open_settings")) {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     UIApplication.shared.open(url)
                 }
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(String(localized: "cancel"), role: .cancel) {}
         } message: {
-            Text("カメラを使用するには、設定アプリでカメラへのアクセスを許可してください。")
+            Text(String(localized: "camera_access_alert_message"))
         }
         // カメラ登録済みの場合はブラックアウトモードへ遷移（接続数に関係なく）
         .fullScreenCover(isPresented: .init(
@@ -146,7 +146,7 @@ struct CameraModeView: View {
     private var loadingView: some View {
         VStack {
             Spacer()
-            ProgressView("カメラを準備中...")
+            ProgressView(String(localized: "camera_preparing"))
                 .foregroundColor(.white)
                 .padding()
                 .background(
@@ -167,12 +167,12 @@ struct CameraModeView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.white.opacity(0.7))
             
-            Text("カメラへのアクセスが必要です")
+            Text(String(localized: "camera_access_required"))
                 .font(.system(.title3, design: .rounded))
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
             
-            Text("設定アプリからカメラへのアクセスを許可してください")
+            Text(String(localized: "camera_access_hint"))
                 .font(.system(.body))
                 .foregroundColor(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
@@ -183,7 +183,7 @@ struct CameraModeView: View {
                     UIApplication.shared.open(url)
                 }
             } label: {
-                Text("設定を開く")
+                Text(String(localized: "open_settings"))
                     .font(.system(.body, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -210,7 +210,7 @@ struct CameraModeView: View {
                 .font(.system(size: 48))
                 .foregroundColor(.mioError)
             
-            Text("カメラ登録に失敗しました")
+            Text(String(localized: "camera_registration_failed"))
                 .font(.system(.title3, design: .rounded))
                 .fontWeight(.semibold)
                 .foregroundColor(.white)
@@ -228,7 +228,7 @@ struct CameraModeView: View {
                     await setupCamera()
                 }
             } label: {
-                Text("再試行")
+                Text(String(localized: "retry"))
                     .font(.system(.body, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(.white)
@@ -266,7 +266,7 @@ struct CameraModeView: View {
                     Circle()
                         .fill(viewModel.isOnline ? Color.mioSuccess : Color.mioError)
                         .frame(width: 10, height: 10)
-                    Text(viewModel.isOnline ? "オンライン" : "オフライン")
+                    Text(viewModel.isOnline ? String(localized: "online") : String(localized: "offline"))
                         .font(.system(.subheadline))
                         .foregroundColor(.white)
                 }
@@ -282,14 +282,14 @@ struct CameraModeView: View {
                     if showManualPairing {
                         // 手動ペアリング情報表示
                         VStack(spacing: 16) {
-                            Text("QRコード以外でペアリングする")
+                            Text(String(localized: "pairing_alternative"))
                                 .font(.system(.subheadline))
                                 .foregroundColor(.white.opacity(0.9))
                                 .multilineTextAlignment(.center)
                             
                             VStack(spacing: 12) {
                                 VStack(spacing: 4) {
-                                    Text("カメラID")
+                                    Text(String(localized: "camera_id"))
                                         .font(.system(.caption))
                                         .foregroundColor(.white.opacity(0.7))
                                     Text(cameraId)
@@ -305,13 +305,13 @@ struct CameraModeView: View {
                                         .onTapGesture {
                                             UIPasteboard.general.string = cameraId
                                         }
-                                    Text("タップしてコピー")
+                                    Text(String(localized: "tap_to_copy"))
                                         .font(.system(.caption2))
                                         .foregroundColor(.white.opacity(0.5))
                                 }
                                 
                                 VStack(spacing: 4) {
-                                    Text("ペアリングコード")
+                                    Text(String(localized: "pairing_code"))
                                         .font(.system(.caption))
                                         .foregroundColor(.white.opacity(0.7))
                                     Text(formatPairingCode(pairingCode))
@@ -327,7 +327,7 @@ struct CameraModeView: View {
                                         .onTapGesture {
                                             UIPasteboard.general.string = pairingCode
                                         }
-                                    Text("タップしてコピー")
+                                    Text(String(localized: "tap_to_copy"))
                                         .font(.system(.caption2))
                                         .foregroundColor(.white.opacity(0.5))
                                 }
@@ -336,7 +336,7 @@ struct CameraModeView: View {
                             Button {
                                 showManualPairing = false
                             } label: {
-                                Text("QRコードに戻る")
+                                Text(String(localized: "back_to_qr"))
                                     .font(.system(.subheadline, design: .rounded))
                                     .fontWeight(.medium)
                                     .foregroundColor(.white)
@@ -352,7 +352,7 @@ struct CameraModeView: View {
                     } else {
                         // QRコード表示
                         VStack(spacing: 12) {
-                            Text("モニターでこのQRコードを読み取ってください")
+                            Text(String(localized: "qr_instruction"))
                                 .font(.system(.subheadline))
                                 .foregroundColor(.white.opacity(0.9))
                                 .multilineTextAlignment(.center)
@@ -374,7 +374,7 @@ struct CameraModeView: View {
                             Button {
                                 showManualPairing = true
                             } label: {
-                                Text("QRコード以外でペアリングする")
+                                Text(String(localized: "pairing_alternative"))
                                     .font(.system(.subheadline, design: .rounded))
                                     .fontWeight(.medium)
                                     .foregroundColor(.white)
@@ -398,7 +398,7 @@ struct CameraModeView: View {
                         .opacity(0.7)
                         .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: true)
                     
-                    Text("モニターの接続を待っています...")
+                    Text(String(localized: "waiting_for_monitors"))
                         .font(.system(.footnote))
                         .foregroundColor(.white.opacity(0.8))
                 }

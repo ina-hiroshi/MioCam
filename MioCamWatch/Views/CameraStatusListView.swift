@@ -15,9 +15,9 @@ struct CameraStatusListView: View {
     var body: some View {
         List {
             if isLoading {
-                ProgressView("読み込み中...")
+                ProgressView(String(localized: "loading"))
             } else if cameras.isEmpty {
-                Text("ペアリング済みのカメラがありません")
+                Text(String(localized: "no_paired_cameras"))
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
@@ -30,7 +30,7 @@ struct CameraStatusListView: View {
                 }
             }
         }
-        .navigationTitle("MioCam")
+        .navigationTitle(String(localized: "app_name"))
         .task {
             await loadCameras()
         }
@@ -98,22 +98,22 @@ struct CameraDetailView: View {
     
     var body: some View {
         List {
-            Section("ステータス") {
+            Section(String(localized: "status")) {
                 HStack {
-                    Text("接続状態")
+                    Text(String(localized: "connection_status"))
                     Spacer()
                     HStack(spacing: 4) {
                         Circle()
                             .fill(camera.isOnline ? Color.green : Color.red)
                             .frame(width: 8, height: 8)
-                        Text(camera.isOnline ? "オンライン" : "オフライン")
+                        Text(camera.isOnline ? String(localized: "online") : String(localized: "offline"))
                             .font(.caption)
                     }
                 }
                 
                 if let battery = camera.batteryLevel {
                     HStack {
-                        Text("バッテリー")
+                        Text(String(localized: "battery"))
                         Spacer()
                         HStack(spacing: 4) {
                             Image(systemName: batteryIcon(level: battery))

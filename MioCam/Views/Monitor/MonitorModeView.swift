@@ -21,7 +21,7 @@ struct MonitorModeView: View {
         VStack(spacing: 24) {
             if viewModel.isLoading || isPairing {
                 Spacer()
-                ProgressView(isPairing ? "ペアリング中..." : "読み込み中...")
+                ProgressView(isPairing ? String(localized: "pairing_in_progress") : String(localized: "loading"))
                     .foregroundColor(.mioTextSecondary)
                 Spacer()
             } else if viewModel.pairedCameras.isEmpty {
@@ -32,7 +32,7 @@ struct MonitorModeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.mioPrimary.ignoresSafeArea())
-        .navigationTitle("モニター")
+        .navigationTitle(String(localized: "monitor_title"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -65,7 +65,7 @@ struct MonitorModeView: View {
             LiveView(viewModel: viewModel, cameraLink: link)
                 .environmentObject(authService)
         }
-        .alert("ペアリングエラー", isPresented: $showPairingError) {
+        .alert(String(localized: "pairing_error"), isPresented: $showPairingError) {
             Button("OK") {
                 pairingError = nil
                 showPairingError = false
@@ -75,7 +75,7 @@ struct MonitorModeView: View {
                 Text(error)
             }
         }
-        .alert("エラー", isPresented: .init(
+        .alert(String(localized: "error"), isPresented: .init(
             get: { viewModel.errorMessage != nil },
             set: { if !$0 { viewModel.errorMessage = nil } }
         )) {
@@ -97,11 +97,11 @@ struct MonitorModeView: View {
                 .font(.system(size: 56))
                 .foregroundColor(.mioTextSecondary.opacity(0.5))
             
-            Text("ペアリング済みのカメラがありません")
+            Text(String(localized: "no_paired_cameras"))
                 .font(.system(.body, design: .rounded))
                 .foregroundColor(.mioTextSecondary)
             
-            Text("カメラのQRコードを読み取って\nペアリングしましょう")
+            Text(String(localized: "scan_to_pair"))
                 .font(.system(.subheadline))
                 .foregroundColor(.mioTextSecondary.opacity(0.7))
                 .multilineTextAlignment(.center)
@@ -111,7 +111,7 @@ struct MonitorModeView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "qrcode.viewfinder")
-                    Text("QRコードをスキャン")
+                    Text(String(localized: "qr_scan_button"))
                 }
                 .font(.system(.body, design: .rounded))
                 .fontWeight(.semibold)
@@ -229,14 +229,14 @@ private struct CameraListRow: View {
                         .fill(isOnline ? Color.mioSuccess : Color.mioError)
                         .frame(width: 6, height: 6)
                     
-                    Text(isOnline ? "オンライン" : "オフライン")
+                    Text(isOnline ? String(localized: "online") : String(localized: "offline"))
                         .font(.system(.caption))
                         .foregroundColor(isOnline ? .mioSuccess : .mioError)
                     
                     if isOnline, let count = cameraStatus?.connectedMonitorCount {
                         Text("・")
                             .foregroundColor(.mioTextSecondary)
-                        Text("\(count)台接続中")
+                        Text(String(format: String(localized: "cameras_connected_format"), count))
                             .font(.system(.caption))
                             .foregroundColor(.mioTextSecondary)
                     }

@@ -1,0 +1,9 @@
+/* MioCamWatch */
+"app_name" = "MioCam";
+"loading" = "Cargando...";
+"no_paired_cameras" = "Sin cámaras emparejadas";
+"status" = "Estado";
+"connection_status" = "Estado de conexión";
+"online" = "En línea";
+"offline" = "Desconectado";
+"battery" = "Batería";

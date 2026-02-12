@@ -22,7 +22,7 @@ struct DeleteAccountReauthSheet: View {
             VStack(spacing: 32) {
                 Spacer()
 
-                Text("アカウント削除のため、再度サインインしてください")
+                Text(String(localized: "delete_account_reauth_message"))
                     .font(.system(.body))
                     .foregroundColor(.mioTextSecondary)
                     .multilineTextAlignment(.center)
@@ -58,11 +58,11 @@ struct DeleteAccountReauthSheet: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.mioPrimary.ignoresSafeArea())
-            .navigationTitle("アカウント削除")
+            .navigationTitle(String(localized: "delete_account_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button(String(localized: "cancel")) {
                         dismiss()
                     }
                 }

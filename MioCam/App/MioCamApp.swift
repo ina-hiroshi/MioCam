@@ -74,12 +74,12 @@ struct RoleSelectionView: View {
                         .scaledToFit()
                         .frame(width: 150, height: 150)
                     
-                    Text("MioCam")
+                    Text(String(localized: "app_name"))
                         .font(.system(.largeTitle, design: .rounded))
                         .fontWeight(.bold)
                         .foregroundColor(.mioTextPrimary)
                     
-                    Text("このデバイスの役割を選んでください")
+                    Text(String(localized: "select_role_prompt"))
                         .font(.system(.body))
                         .foregroundColor(.mioTextSecondary)
                 }
@@ -96,11 +96,11 @@ struct RoleSelectionView: View {
                                 .frame(width: 44)
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("カメラ")
+                                Text(String(localized: "camera_role"))
                                     .font(.system(.title3, design: .rounded))
                                     .fontWeight(.semibold)
                                 
-                                Text("このデバイスで映像を配信します")
+                                Text(String(localized: "camera_role_desc"))
                                     .font(.system(.caption))
                                     .opacity(0.8)
                             }
@@ -127,11 +127,11 @@ struct RoleSelectionView: View {
                                 .frame(width: 44)
                             
                             VStack(alignment: .leading, spacing: 4) {
-                                Text("モニター")
+                                Text(String(localized: "monitor_role"))
                                     .font(.system(.title3, design: .rounded))
                                     .fontWeight(.semibold)
                                 
-                                Text("別のデバイスの映像を見ます")
+                                Text(String(localized: "monitor_role_desc"))
                                     .font(.system(.caption))
                                     .opacity(0.8)
                             }
@@ -158,7 +158,7 @@ struct RoleSelectionView: View {
                 Button {
                     try? authService.signOut()
                 } label: {
-                    Text("サインアウト")
+                    Text(String(localized: "sign_out"))
                         .font(.system(.footnote))
                         .foregroundColor(.mioTextSecondary)
                 }

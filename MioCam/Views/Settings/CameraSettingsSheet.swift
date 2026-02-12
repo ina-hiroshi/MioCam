@@ -35,7 +35,7 @@ struct CameraSettingsSheet: View {
                             Image(systemName: "qrcode")
                                 .foregroundColor(.mioAccent)
                                 .frame(width: 24)
-                            Text("QRコードを表示")
+                            Text(String(localized: "show_qr_code"))
                                 .foregroundColor(.mioTextPrimary)
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -51,7 +51,7 @@ struct CameraSettingsSheet: View {
                             Image(systemName: "arrow.triangle.2.circlepath")
                                 .foregroundColor(.mioAccent)
                                 .frame(width: 24)
-                            Text("ペアリングコードを再生成")
+                            Text(String(localized: "regenerate_pairing_code"))
                                 .foregroundColor(.mioTextPrimary)
                             Spacer()
                             Image(systemName: "chevron.right")
@@ -62,13 +62,13 @@ struct CameraSettingsSheet: View {
                 }
                 
                 // 接続中モニター
-                Section(header: Text("接続中のモニター")) {
+                Section(header: Text(String(localized: "connected_monitors"))) {
                     if viewModel.connectedMonitors.isEmpty {
                         HStack {
                             Image(systemName: "eye.slash")
                                 .foregroundColor(.mioTextSecondary)
                                 .frame(width: 24)
-                            Text("接続中のモニターはありません")
+                            Text(String(localized: "no_connected_monitors"))
                                 .foregroundColor(.mioTextSecondary)
                         }
                     } else {
@@ -114,8 +114,8 @@ struct CameraSettingsSheet: View {
                 }
                 
                 // カメラ名
-                Section(header: Text("カメラ名")) {
-                    TextField("カメラ名を入力", text: $cameraName)
+                Section(header: Text(String(localized: "camera_name"))) {
+                    TextField(String(localized: "camera_name_placeholder"), text: $cameraName)
                         .onAppear {
                             cameraName = viewModel.deviceName
                         }
@@ -139,7 +139,7 @@ struct CameraSettingsSheet: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Text("カメラを停止する")
+                            Text(String(localized: "stop_camera"))
                                 .fontWeight(.semibold)
                             Spacer()
                         }
@@ -149,15 +149,15 @@ struct CameraSettingsSheet: View {
                 // アカウント情報
                 Section {
                     HStack {
-                        Text("アカウント")
+                        Text(String(localized: "account"))
                             .foregroundColor(.mioTextSecondary)
                         Spacer()
-                        Text(authService.currentUser?.displayName ?? "匿名ユーザー")
+                        Text(authService.currentUser?.displayName ?? String(localized: "anonymous_user"))
                             .foregroundColor(.mioTextSecondary)
                     }
                     
                     HStack {
-                        Text("バージョン")
+                        Text(String(localized: "version"))
                             .foregroundColor(.mioTextSecondary)
                         Spacer()
                         Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
@@ -165,11 +165,11 @@ struct CameraSettingsSheet: View {
                     }
                 }
             }
-            .navigationTitle("カメラ設定")
+            .navigationTitle(String(localized: "camera_settings_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") {
+                    Button(String(localized: "done")) {
                         dismiss()
                     }
                 }
@@ -178,35 +178,35 @@ struct CameraSettingsSheet: View {
         .sheet(isPresented: $showQRCode) {
             qrCodeSheet
         }
-        .alert("ペアリングコードを再生成", isPresented: $showRegeneratePairingCodeAlert) {
-            Button("再生成", role: .destructive) {
+        .alert(String(localized: "regenerate_pairing_code"), isPresented: $showRegeneratePairingCodeAlert) {
+            Button(String(localized: "regenerate"), role: .destructive) {
                 Task {
                     await viewModel.regeneratePairingCode()
                 }
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(String(localized: "cancel"), role: .cancel) {}
         } message: {
             if viewModel.connectedMonitors.isEmpty {
-                Text("ペアリングコードを再生成します。")
+                Text(String(localized: "regenerate_pairing_alert_message"))
             } else {
-                Text("再生成すると、現在接続中のモニターはすべて切断されます。続けますか？")
+                Text(String(localized: "regenerate_pairing_alert_detail"))
             }
         }
-        .alert("カメラを停止", isPresented: $showStopCameraAlert) {
-            Button("停止", role: .destructive) {
+        .alert(String(localized: "stop_camera"), isPresented: $showStopCameraAlert) {
+            Button(String(localized: "stop"), role: .destructive) {
                 dismiss()
                 onStopCamera()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(String(localized: "cancel"), role: .cancel) {}
         } message: {
-            Text("カメラを停止すると、すべてのモニターとの接続が切断されます。")
+            Text(String(localized: "stop_camera_alert_message"))
         }
-        .alert("エラー", isPresented: $showNameUpdateError) {
+        .alert(String(localized: "error"), isPresented: $showNameUpdateError) {
             Button("OK") {
                 showNameUpdateError = false
             }
         } message: {
-            Text("カメラが登録されていません。カメラを起動してから再度お試しください。")
+            Text(String(localized: "camera_not_registered"))
         }
     }
     
@@ -221,14 +221,14 @@ struct CameraSettingsSheet: View {
                     if showManualPairing {
                         // 手動ペアリング情報表示
                         VStack(spacing: 20) {
-                            Text("QRコード以外でペアリングする")
+                            Text(String(localized: "pairing_alternative"))
                                 .font(.system(.body))
                                 .foregroundColor(.mioTextSecondary)
                                 .multilineTextAlignment(.center)
                             
                             VStack(spacing: 16) {
                                 VStack(spacing: 4) {
-                                    Text("カメラID")
+                                    Text(String(localized: "camera_id"))
                                         .font(.system(.caption))
                                         .foregroundColor(.mioTextSecondary)
                                     
@@ -240,13 +240,13 @@ struct CameraSettingsSheet: View {
                                             UIPasteboard.general.string = cameraId
                                         }
                                     
-                                    Text("タップしてコピー")
+                                    Text(String(localized: "tap_to_copy"))
                                         .font(.system(.caption2))
                                         .foregroundColor(.mioTextSecondary.opacity(0.7))
                                 }
                                 
                                 VStack(spacing: 4) {
-                                    Text("ペアリングコード")
+                                    Text(String(localized: "pairing_code"))
                                         .font(.system(.caption))
                                         .foregroundColor(.mioTextSecondary)
                                     
@@ -258,7 +258,7 @@ struct CameraSettingsSheet: View {
                                             UIPasteboard.general.string = pairingCode
                                         }
                                     
-                                    Text("タップしてコピー")
+                                    Text(String(localized: "tap_to_copy"))
                                         .font(.system(.caption2))
                                         .foregroundColor(.mioTextSecondary.opacity(0.7))
                                 }
@@ -267,7 +267,7 @@ struct CameraSettingsSheet: View {
                             Button {
                                 showManualPairing = false
                             } label: {
-                                Text("QRコードに戻る")
+                                Text(String(localized: "back_to_qr"))
                                     .font(.system(.body, design: .rounded))
                                     .fontWeight(.medium)
                                     .foregroundColor(.mioAccent)
@@ -275,7 +275,7 @@ struct CameraSettingsSheet: View {
                         }
                     } else {
                         // QRコード表示
-                        Text("モニターでこのQRコードを読み取ってください")
+                        Text(String(localized: "qr_instruction"))
                             .font(.system(.body))
                             .foregroundColor(.mioTextSecondary)
                             .multilineTextAlignment(.center)
@@ -297,7 +297,7 @@ struct CameraSettingsSheet: View {
                         Button {
                             showManualPairing = true
                         } label: {
-                            Text("QRコード以外でペアリングする")
+                            Text(String(localized: "pairing_alternative"))
                                 .font(.system(.body, design: .rounded))
                                 .fontWeight(.medium)
                                 .foregroundColor(.mioAccent)
@@ -310,11 +310,11 @@ struct CameraSettingsSheet: View {
             }
             .padding()
             .background(Color.mioPrimary.ignoresSafeArea())
-            .navigationTitle("QRコード")
+            .navigationTitle(String(localized: "qr_code_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("閉じる") {
+                    Button(String(localized: "close")) {
                         showQRCode = false
                     }
                 }

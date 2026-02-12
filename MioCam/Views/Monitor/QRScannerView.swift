@@ -44,7 +44,7 @@ struct QRScannerView: View {
                     
                     // 説明テキスト
                     VStack(spacing: 12) {
-                        Text("カメラのQRコードを読み取ってください")
+                        Text(String(localized: "scan_qr_prompt"))
                             .font(.system(.body, design: .rounded))
                             .fontWeight(.medium)
                             .foregroundColor(.white)
@@ -52,7 +52,7 @@ struct QRScannerView: View {
                         Button {
                             showManualEntry = true
                         } label: {
-                            Text("コードを手入力する")
+                            Text(String(localized: "code_manual_entry"))
                                 .font(.system(.footnote))
                                 .foregroundColor(.mioAccent)
                                 .padding(.horizontal, 20)
@@ -66,11 +66,11 @@ struct QRScannerView: View {
                     .padding(.bottom, 48)
                 }
             }
-            .navigationTitle("QRスキャン")
+            .navigationTitle(String(localized: "qr_scan_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button(String(localized: "cancel")) {
                         dismiss()
                     }
                     .foregroundColor(.white)
@@ -97,7 +97,7 @@ struct QRScannerView: View {
             dismiss()
         } else {
             // パース失敗 → 再スキャン
-            scannedMessage = "無効なQRコードです。カメラアプリのQRを読み取ってください。"
+            scannedMessage = String(localized: "invalid_qr_message")
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 scannedMessage = nil
                 isScanning = true
@@ -110,7 +110,7 @@ struct QRScannerView: View {
     private var manualEntrySheet: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                Text("カメラのペアリング情報を入力してください")
+                Text(String(localized: "camera_pairing_info"))
                     .font(.system(.body))
                     .foregroundColor(.mioTextSecondary)
                     .multilineTextAlignment(.center)
@@ -119,14 +119,14 @@ struct QRScannerView: View {
                 
                 VStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("カメラID")
+                        Text(String(localized: "camera_id"))
                             .font(.system(.caption))
                             .foregroundColor(.mioTextSecondary)
-                        Text("カメラ側の画面に表示されているカメラIDを入力してください")
+                        Text(String(localized: "camera_id_hint"))
                             .font(.system(.caption2))
                             .foregroundColor(.mioTextSecondary)
                             .padding(.bottom, 4)
-                        TextField("カメラIDを入力", text: $manualCameraId)
+                        TextField(String(localized: "camera_id_placeholder"), text: $manualCameraId)
                             .textFieldStyle(.roundedBorder)
                             .autocapitalization(.none)
                             .autocorrectionDisabled()
@@ -134,14 +134,14 @@ struct QRScannerView: View {
                     .padding(.horizontal, 24)
                     
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("ペアリングコード")
+                        Text(String(localized: "pairing_code"))
                             .font(.system(.caption))
                             .foregroundColor(.mioTextSecondary)
-                        Text("6桁の英数字コード（例: ABC123）")
+                        Text(String(localized: "pairing_code_hint"))
                             .font(.system(.caption2))
                             .foregroundColor(.mioTextSecondary)
                             .padding(.bottom, 4)
-                        TextField("6桁のコードを入力", text: $manualPairingCode)
+                        TextField(String(localized: "pairing_code_placeholder"), text: $manualPairingCode)
                             .textFieldStyle(.roundedBorder)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
@@ -155,7 +155,7 @@ struct QRScannerView: View {
                     onScanned(manualCameraId, manualPairingCode)
                     dismiss()
                 } label: {
-                    Text("ペアリング")
+                    Text(String(localized: "pairing"))
                         .font(.system(.body, design: .rounded))
                         .fontWeight(.semibold)
                         .foregroundColor(.white)
@@ -172,11 +172,11 @@ struct QRScannerView: View {
                 Spacer()
             }
             .background(Color.mioPrimary.ignoresSafeArea())
-            .navigationTitle("手入力")
+            .navigationTitle(String(localized: "manual_entry_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") {
+                    Button(String(localized: "cancel")) {
                         showManualEntry = false
                     }
                 }

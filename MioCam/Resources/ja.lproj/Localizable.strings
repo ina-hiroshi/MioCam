@@ -1,0 +1,136 @@
+/* LiveView */
+"live_view_title" = "ライブビュー";
+"connection_error" = "接続エラー";
+"connection_timeout" = "接続がタイムアウトしました";
+"reconnecting" = "再接続中...";
+"connecting" = "接続中...";
+"connection_please_retry" = "接続に時間がかかっています。もう一度お試しください。";
+"retry" = "再試行";
+"auth_required" = "認証が必要です";
+"connection_timing_out" = "接続に時間がかかっています。ネットワーク接続を確認してください。";
+"camera_not_found" = "カメラが見つかりません";
+"camera_offline" = "カメラがオフラインです";
+"camera_went_offline" = "カメラがオフラインになりました";
+"connection_lost" = "接続が切断されました";
+"connection_lost_reconnect_failed" = "接続が切断されました。再接続に失敗しました。";
+"camera_info_fetch_failed" = "カメラ情報の取得に失敗しました: %@";
+"camera_info_unavailable" = "カメラ情報が取得できません";
+"answer_set_failed" = "Answerの設定に失敗しました: %@";
+"answer_receive_failed" = "Answerの受信に失敗しました: %@";
+
+/* QRScannerView */
+"scan_qr_prompt" = "カメラのQRコードを読み取ってください";
+"code_manual_entry" = "コードを手入力する";
+"qr_scan_title" = "QRスキャン";
+"cancel" = "キャンセル";
+"camera_pairing_info" = "カメラのペアリング情報を入力してください";
+"camera_id" = "カメラID";
+"camera_id_hint" = "カメラ側の画面に表示されているカメラIDを入力してください";
+"camera_id_placeholder" = "カメラIDを入力";
+"pairing_code" = "ペアリングコード";
+"pairing_code_hint" = "6桁の英数字コード（例: ABC123）";
+"pairing_code_placeholder" = "6桁のコードを入力";
+"pairing" = "ペアリング";
+"manual_entry_title" = "手入力";
+"invalid_qr_message" = "無効なQRコードです。カメラアプリのQRを読み取ってください。";
+
+/* BlackoutView / Camera */
+"camera" = "カメラ";
+
+/* MioCamApp */
+"app_name" = "MioCam";
+"select_role_prompt" = "このデバイスの役割を選んでください";
+"camera_role" = "カメラ";
+"camera_role_desc" = "このデバイスで映像を配信します";
+"monitor_role" = "モニター";
+"monitor_role_desc" = "別のデバイスの映像を見ます";
+"sign_out" = "サインアウト";
+
+/* SignInWithAppleView */
+"tagline" = "お手持ちの端末を、世界一シンプルな見守り窓に。";
+"sign_in_apple_prompt" = "Sign in with Appleで簡単に始められます";
+"auth_error_simulator" = "認証エラーが発生しました。実機で実行していることを確認してください。シミュレーターではSign in with Appleが正しく動作しない場合があります。";
+"auth_canceled" = "認証がキャンセルされました。";
+"auth_invalid_response" = "無効な認証応答が返されました。";
+"auth_not_handled" = "認証リクエストが処理できませんでした。";
+"auth_failed" = "認証に失敗しました。";
+"auth_not_interactive" = "認証が対話的に処理できませんでした。";
+"auth_matched_excluded" = "除外された認証情報が一致しました。";
+"auth_unknown_error" = "不明な認証エラー: %@";
+"auth_device_setting_error" = "デバイスの設定に問題があります。実機で実行していることを確認してください。";
+
+/* MonitorModeView */
+"monitor_title" = "モニター";
+"pairing_error" = "ペアリングエラー";
+"error" = "エラー";
+"no_paired_cameras" = "ペアリング済みのカメラがありません";
+"scan_to_pair" = "カメラのQRコードを読み取って\nペアリングしましょう";
+"qr_scan_button" = "QRコードをスキャン";
+"cameras_connected_format" = "%d台接続中";
+"loading" = "読み込み中...";
+"pairing_in_progress" = "ペアリング中...";
+
+/* CameraSettingsSheet */
+"show_qr_code" = "QRコードを表示";
+"regenerate_pairing_code" = "ペアリングコードを再生成";
+"connected_monitors" = "接続中のモニター";
+"no_connected_monitors" = "接続中のモニターはありません";
+"camera_name" = "カメラ名";
+"camera_name_placeholder" = "カメラ名を入力";
+"stop_camera" = "カメラを停止する";
+"account" = "アカウント";
+"version" = "バージョン";
+"camera_settings_title" = "カメラ設定";
+"done" = "完了";
+"regenerate" = "再生成";
+"regenerate_pairing_alert_message" = "ペアリングコードを再生成します。";
+"regenerate_pairing_alert_detail" = "再生成すると、現在接続中のモニターはすべて切断されます。続けますか？";
+"stop" = "停止";
+"stop_camera_alert_message" = "カメラを停止すると、すべてのモニターとの接続が切断されます。";
+"camera_not_registered" = "カメラが登録されていません。カメラを起動してから再度お試しください。";
+"pairing_alternative" = "QRコード以外でペアリングする";
+"tap_to_copy" = "タップしてコピー";
+"back_to_qr" = "QRコードに戻る";
+"qr_instruction" = "モニターでこのQRコードを読み取ってください";
+"qr_code_title" = "QRコード";
+"close" = "閉じる";
+
+/* CameraModeView */
+"camera_access_required" = "カメラへのアクセスが必要です";
+"camera_access_hint" = "設定アプリからカメラへのアクセスを許可してください";
+"open_settings" = "設定を開く";
+"camera_access_alert_title" = "カメラへのアクセス";
+"camera_access_alert_message" = "カメラを使用するには、設定アプリでカメラへのアクセスを許可してください。";
+"camera_registration_failed" = "カメラ登録に失敗しました";
+"waiting_for_monitors" = "モニターの接続を待っています...";
+"camera_preparing" = "カメラを準備中...";
+
+/* AppSettingsSheet */
+"user_name" = "ユーザー名";
+"display_name_placeholder" = "表示名を入力";
+"save" = "保存";
+"delete_account" = "アカウントを削除";
+"settings_title" = "設定";
+"delete_account_confirm" = "アカウントとデータは完全に削除され、元に戻せません。削除しますか？";
+"display_name_required" = "名前を入力してください";
+
+/* DeleteAccountReauthSheet */
+"delete_account_reauth_message" = "アカウント削除のため、再度サインインしてください";
+"delete_account_title" = "アカウント削除";
+
+/* MonitorSettingsSheet */
+"camera_info" = "カメラ情報";
+"device_model" = "機種";
+"connection_status" = "接続状態";
+"status" = "ステータス";
+"online" = "オンライン";
+"offline" = "オフライン";
+"battery" = "バッテリー";
+"disconnect_camera" = "カメラの接続を解除";
+"monitor_settings_title" = "モニター設定";
+"disconnect" = "接続を解除";
+"disconnect_button" = "解除";
+"delete_confirm" = "削除する";
+"disconnect_confirm_message" = "このカメラとの接続を解除しますか？再度接続するにはQRコードのスキャンが必要です。";
+"unknown" = "不明";
+"anonymous_user" = "匿名ユーザー";

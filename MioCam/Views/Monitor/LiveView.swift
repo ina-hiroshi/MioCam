@@ -12,10 +12,15 @@ import FirebaseFirestore
 /// ライブビュー画面
 struct LiveView: View {
     @EnvironmentObject var authService: AuthenticationService
-    let viewModel: MonitorViewModel
+    @ObservedObject var viewModel: MonitorViewModel
     @Environment(\.dismiss) private var dismiss
     
     let cameraLink: MonitorLinkModel
+    
+    /// MonitorViewModelのcameraStatusesを参照（observeCamera重複を避け、Firestore read削減）
+    private var cameraInfo: CameraModel? {
+        viewModel.cameraStatuses[cameraLink.cameraId]
+    }
     
     @State private var showSettings = false
     @State private var showOverlay = true
@@ -26,13 +31,11 @@ struct LiveView: View {
     @State private var isConnecting = true
     @State private var isReconnecting = false
     @State private var connectionError: String?
-    @State private var cameraInfo: CameraModel?
     @State private var videoTrack: RTCVideoTrack?
     @State private var audioTrack: RTCAudioTrack?
     @State private var sessionId: String?
     @State private var sessionMonitorListener: ListenerRegistration?  // Answerと音声設定を統合
     @State private var iceCandidateListener: ListenerRegistration?
-    @State private var cameraListener: ListenerRegistration?
     @State private var originalIdleTimerDisabled: Bool = false
     @State private var isMicActive = false
     @State private var showOfflineAlert = false
@@ -141,7 +144,7 @@ struct LiveView: View {
                 statusOverlay
             }
         }
-        .navigationTitle(cameraInfo?.deviceName ?? "ライブビュー")
+        .navigationTitle(cameraInfo?.deviceName ?? String(localized: "live_view_title"))
         .navigationBarTitleDisplayMode(.inline)
         .contentShape(Rectangle())
         .onTapGesture {
@@ -193,13 +196,19 @@ struct LiveView: View {
             }
             .environmentObject(authService)
         }
-        .alert("接続エラー", isPresented: $showOfflineAlert) {
+        .alert(String(localized: "connection_error"), isPresented: $showOfflineAlert) {
             Button("OK") {
                 Task { await performCleanup(); dismiss() }
             }
         } message: {
             if let message = offlineMessage {
                 Text(message)
+            }
+        }
+        .onChange(of: viewModel.cameraStatuses[cameraLink.cameraId]?.isOnline) { newValue in
+            if newValue == false && hasEverConnected {
+                offlineMessage = String(localized: "camera_went_offline")
+                showOfflineAlert = true
             }
         }
     }
@@ -247,7 +256,7 @@ struct LiveView: View {
                         .scaleEffect(1.5)
                 }
                 
-                Text(connectionTimedOut ? "接続がタイムアウトしました" : (isReconnecting ? "再接続中..." : "接続中..."))
+                Text(connectionTimedOut ? String(localized: "connection_timeout") : (isReconnecting ? String(localized: "reconnecting") : String(localized: "connecting")))
                     .font(.system(.body, design: .rounded))
                     .foregroundColor(.white.opacity(0.8))
                 
@@ -260,7 +269,7 @@ struct LiveView: View {
                 }
                 
                 if connectionTimedOut {
-                    Text("接続に時間がかかっています。もう一度お試しください。")
+                    Text(String(localized: "connection_please_retry"))
                         .font(.system(.caption))
                         .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
@@ -276,7 +285,7 @@ struct LiveView: View {
                             await startConnection()
                         }
                     } label: {
-                        Text("再試行")
+                        Text(String(localized: "retry"))
                             .font(.system(.body, design: .rounded))
                             .fontWeight(.semibold)
                             .foregroundColor(.white)
@@ -516,7 +525,7 @@ struct LiveView: View {
     
     private func startConnection() async {
         guard authService.currentUser?.uid != nil else {
-            connectionError = "認証が必要です"
+            connectionError = String(localized: "auth_required")
             isConnecting = false
             return
         }
@@ -532,8 +541,6 @@ struct LiveView: View {
             iceCandidateListener = nil
             connectedSessionsListener?.remove()
             connectedSessionsListener = nil
-            cameraListener?.remove()
-            cameraListener = nil
             webRTCService.closeSession(sessionId: oldSessionId)
         }
         
@@ -550,57 +557,30 @@ struct LiveView: View {
             try? await Task.sleep(nanoseconds: 30_000_000_000) // 30秒
             if !Task.isCancelled && isConnecting && videoTrack == nil {
                 connectionTimedOut = true
-                connectionError = "接続に時間がかかっています。ネットワーク接続を確認してください。"
+                connectionError = String(localized: "connection_timing_out")
                 isConnecting = false
             }
         }
         
         do {
-            // カメラ情報を取得
-            guard let camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraLink.cameraId) else {
-                connectionError = "カメラが見つかりません"
+            // カメラ情報を取得（MonitorViewModelのcameraStatusesを優先、未ロード時のみFirestoreから取得）
+            var camera = viewModel.cameraStatuses[cameraLink.cameraId]
+            if camera == nil {
+                camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraLink.cameraId)
+            }
+            guard let camera = camera else {
+                connectionError = String(localized: "camera_not_found")
                 isConnecting = false
                 return
             }
             
             // カメラがオフラインの場合は接続を試みない
             guard camera.isOnline else {
-                connectionError = "カメラがオフラインです"
+                connectionError = String(localized: "camera_offline")
                 isConnecting = false
-                offlineMessage = "カメラがオフラインです"
+                offlineMessage = String(localized: "camera_offline")
                 showOfflineAlert = true
                 return
-            }
-            
-            cameraInfo = camera
-            
-            // カメラの状態をリアルタイム監視開始
-            cameraListener = CameraFirestoreService.shared.observeCamera(
-                cameraId: cameraLink.cameraId
-            ) { [self] result in
-                Task { @MainActor in
-                    switch result {
-                    case .success(let updatedCamera):
-                        if let updatedCamera = updatedCamera {
-                            // 既に接続済みの状態でオフラインになった場合のみアラートを表示
-                            if let currentCamera = self.cameraInfo,
-                               currentCamera.isOnline && !updatedCamera.isOnline {
-                                self.offlineMessage = "カメラがオフラインになりました"
-                                self.showOfflineAlert = true
-                            }
-                            // 表示に関連するフィールドが変わった場合のみ更新（不要な再描画を防止）
-                            if self.cameraInfo == nil
-                                || self.cameraInfo?.isOnline != updatedCamera.isOnline
-                                || self.cameraInfo?.batteryLevel != updatedCamera.batteryLevel
-                                || self.cameraInfo?.deviceName != updatedCamera.deviceName
-                                || self.cameraInfo?.connectedMonitorCount != updatedCamera.connectedMonitorCount {
-                                self.cameraInfo = updatedCamera
-                            }
-                        }
-                    case .failure(let error):
-                        print("カメラ監視エラー: \(error.localizedDescription)")
-                    }
-                }
             }
             
             // セッションIDを生成（UUID）
@@ -662,70 +642,19 @@ struct LiveView: View {
                     print("フィルタリング後のセッション数: \(targetSessions.count)")
                     #endif
                     
-                    // 各セッションのmonitorUserIdからusersコレクションのdisplayNameを並列取得
-                    // キャッシュを活用してFirestoreの読み取りを最小限に
-                    await withTaskGroup(of: (String, String?).self) { group in
-                        for session in targetSessions {
-                            group.addTask { [userDisplayNameCache] in
-                                // セッションにdisplayNameが既にある場合はそれを使用（最新の情報を優先）
-                                if let displayName = session.displayName, !displayName.isEmpty {
-                                    return (session.monitorUserId, displayName)
-                                }
-                                
-                                // キャッシュに存在する場合はそれを使用（Firestoreの読み取りを回避）
-                                if let cachedName = userDisplayNameCache[session.monitorUserId], !cachedName.isEmpty {
-                                    return (session.monitorUserId, cachedName)
-                                }
-                                
-                                // キャッシュにない場合のみFirestoreから取得
-                                do {
-                                    let userDoc = try await FirestoreService.shared.db
-                                        .collection("users")
-                                        .document(session.monitorUserId)
-                                        .getDocument()
-                                    
-                                    if let userData = userDoc.data(),
-                                       let name = userData["displayName"] as? String,
-                                       !name.isEmpty {
-                                        return (session.monitorUserId, name)
-                                    }
-                                } catch {
-                                    #if DEBUG
-                                    print("ユーザー情報取得エラー (\(session.monitorUserId)): \(error.localizedDescription)")
-                                    #endif
-                                }
-                                
-                                // displayNameが取得できなかった場合はmonitorDeviceNameを使用
-                                return (session.monitorUserId, session.monitorDeviceName)
-                            }
+                    // session.displayName を優先し、キャッシュ、monitorDeviceName の順で使用（users read 削減）
+                    for session in targetSessions {
+                        let displayName: String
+                        if let name = session.displayName, !name.isEmpty {
+                            displayName = name
+                            userDisplayNameCache[session.monitorUserId] = name
+                        } else if let cached = userDisplayNameCache[session.monitorUserId], !cached.isEmpty {
+                            displayName = cached
+                        } else {
+                            displayName = session.monitorDeviceName
                         }
-                        
-                        // 結果を収集し、キャッシュを更新（TaskGroup外で実行してデータ競合を回避）
-                        var userIdToDisplayName: [String: String] = [:]
-                        for await (userId, displayName) in group {
-                            if let displayName = displayName, !displayName.isEmpty {
-                                userIdToDisplayName[userId] = displayName
-                                // キャッシュに保存（新しい値または更新された値の場合）
-                                self.userDisplayNameCache[userId] = displayName
-                            }
-                        }
-                        
-                        // セッションの順序を保持しながらdisplayNameを取得
-                        for session in targetSessions {
-                            if let displayName = userIdToDisplayName[session.monitorUserId] {
-                                userNames.append(displayName)
-                                #if DEBUG
-                                print("セッション \(session.id ?? "unknown"): userId=\(session.monitorUserId), displayName=\(displayName)")
-                                #endif
-                            } else {
-                                // フォールバック: monitorDeviceNameを使用
-                                if !session.monitorDeviceName.isEmpty {
-                                    userNames.append(session.monitorDeviceName)
-                                    #if DEBUG
-                                    print("セッション \(session.id ?? "unknown"): userId=\(session.monitorUserId), displayName=取得失敗、monitorDeviceName=\(session.monitorDeviceName)")
-                                    #endif
-                                }
-                            }
+                        if !displayName.isEmpty {
+                            userNames.append(displayName)
                         }
                     }
                     
@@ -749,7 +678,7 @@ struct LiveView: View {
     
     func handleOfferGenerated(_ offer: RTCSessionDescription, sessionId: String) async {
         guard let monitorUserId = authService.currentUser?.uid else {
-            connectionError = "認証が必要です"
+            connectionError = String(localized: "auth_required")
             isConnecting = false
             return
         }
@@ -759,21 +688,20 @@ struct LiveView: View {
             return
         }
         
-        // cameraInfoが設定されていない場合は再取得
-        var camera = cameraInfo
+        // cameraInfoはviewModel.cameraStatusesを参照。nilの場合はgetCameraで取得
+        var camera = viewModel.cameraStatuses[cameraLink.cameraId]
         if camera == nil {
             do {
                 camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraLink.cameraId)
-                cameraInfo = camera
             } catch {
-                connectionError = "カメラ情報の取得に失敗しました: \(error.localizedDescription)"
+                connectionError = String(format: String(localized: "camera_info_fetch_failed"), error.localizedDescription)
                 isConnecting = false
                 return
             }
         }
         
         guard let camera = camera else {
-            connectionError = "カメラ情報が取得できません"
+            connectionError = String(localized: "camera_info_unavailable")
             isConnecting = false
             return
         }
@@ -894,7 +822,7 @@ struct LiveView: View {
             } catch {
                 // エラー時はフラグをリセットして再試行可能にする
                 hasReceivedAnswer = false
-                connectionError = "Answerの設定に失敗しました: \(error.localizedDescription)"
+                connectionError = String(format: String(localized: "answer_set_failed"), error.localizedDescription)
                 isConnecting = false
                 #if DEBUG
                 print("handleAnswerReceived: Answer設定エラー - \(error.localizedDescription)")
@@ -902,7 +830,7 @@ struct LiveView: View {
             }
             
         case .failure(let error):
-            connectionError = "Answerの受信に失敗しました: \(error.localizedDescription)"
+            connectionError = String(format: String(localized: "answer_receive_failed"), error.localizedDescription)
             isConnecting = false
             #if DEBUG
             print("handleAnswerReceived: Answer受信エラー - \(error.localizedDescription)")
@@ -1116,7 +1044,7 @@ struct LiveView: View {
                 isConnecting = false
                 isReconnecting = false
                 if connectionError == nil {
-                    connectionError = hasEverConnected ? "接続が切断されました。再接続に失敗しました。" : "接続が切断されました"
+                    connectionError = hasEverConnected ? String(localized: "connection_lost_reconnect_failed") : String(localized: "connection_lost")
                 }
             }
         case .closed:
@@ -1159,8 +1087,6 @@ struct LiveView: View {
         iceCandidateListener = nil
         connectedSessionsListener?.remove()
         connectedSessionsListener = nil
-        cameraListener?.remove()
-        cameraListener = nil
         
         // WebRTCセッションを終了
         let sessionIdToCleanup = sessionId

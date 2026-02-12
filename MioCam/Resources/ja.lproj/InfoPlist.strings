@@ -1,0 +1,8 @@
+/* Privacy - Camera */
+"NSCameraUsageDescription" = "MioCamは見守りカメラとして映像を配信するためにカメラへのアクセスが必要です。";
+
+/* Privacy - Microphone */
+"NSMicrophoneUsageDescription" = "MioCamは双方向音声通話機能（Phase 3）でマイクへのアクセスが必要です。";
+
+/* Privacy - Local Network */
+"NSLocalNetworkUsageDescription" = "MioCamはカメラとモニター間のリアルタイム映像通信のためにローカルネットワークへのアクセスが必要です。";

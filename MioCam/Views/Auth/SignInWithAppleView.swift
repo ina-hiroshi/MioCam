@@ -26,7 +26,7 @@ struct SignInWithAppleView: View {
                     .scaledToFit()
                     .frame(width: 150, height: 150)
                 
-                Text("MioCam")
+                Text(String(localized: "app_name"))
                     .font(.system(.largeTitle, design: .rounded))
                     .fontWeight(.bold)
                     .foregroundColor(.mioTextPrimary)
@@ -34,14 +34,14 @@ struct SignInWithAppleView: View {
             
             // 説明テキスト
             VStack(spacing: 12) {
-                Text("お手持ちの端末を、世界一シンプルな見守り窓に。")
+                Text(String(localized: "tagline"))
                     .font(.system(.title3, design: .rounded))
                     .fontWeight(.semibold)
                     .foregroundColor(.mioTextPrimary)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 24)
                 
-                Text("Sign in with Appleで簡単に始められます")
+                Text(String(localized: "sign_in_apple_prompt"))
                     .font(.system(.body))
                     .foregroundColor(.mioTextSecondary)
                     .multilineTextAlignment(.center)
@@ -94,25 +94,25 @@ struct SignInWithAppleView: View {
                 if let authError = error as? ASAuthorizationError {
                     switch authError.code {
                     case .unknown:
-                        message = "認証エラーが発生しました。実機で実行していることを確認してください。シミュレーターではSign in with Appleが正しく動作しない場合があります。"
+                        message = String(localized: "auth_error_simulator")
                     case .canceled:
-                        message = "認証がキャンセルされました。"
+                        message = String(localized: "auth_canceled")
                     case .invalidResponse:
-                        message = "無効な認証応答が返されました。"
+                        message = String(localized: "auth_invalid_response")
                     case .notHandled:
-                        message = "認証リクエストが処理できませんでした。"
+                        message = String(localized: "auth_not_handled")
                     case .failed:
-                        message = "認証に失敗しました。"
+                        message = String(localized: "auth_failed")
                     case .notInteractive:
-                        message = "認証が対話的に処理できませんでした。"
+                        message = String(localized: "auth_not_interactive")
                     case .matchedExcludedCredential:
-                        message = "除外された認証情報が一致しました。"
+                        message = String(localized: "auth_matched_excluded")
                     default:
-                        message = "不明な認証エラー: \(authError.localizedDescription)"
+                        message = String(format: String(localized: "auth_unknown_error"), authError.localizedDescription)
                     }
                 } else if nsError.domain == "AKAuthenticationError" {
                     if nsError.code == -7026 {
-                        message = "デバイスの設定に問題があります。実機で実行していることを確認してください。"
+                        message = String(localized: "auth_device_setting_error")
                     }
                 }
                 

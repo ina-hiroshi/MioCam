@@ -119,16 +119,9 @@ class MonitorViewModel: ObservableObject {
     
     /// QRコードからカメラ情報を取得してペアリング
     func pairWithCamera(cameraId: String, pairingCode: String, monitorUserId: String) async throws -> Bool {
-        // カメラの存在確認とpairingCode検証
-        let isValid = try await monitorLinkService.verifyCamera(cameraId: cameraId, pairingCode: pairingCode)
-        
-        if !isValid {
+        // カメラの存在確認とpairingCode検証を1回のreadで実施
+        guard let camera = try await monitorLinkService.verifyAndGetCamera(cameraId: cameraId, pairingCode: pairingCode) else {
             throw NSError(domain: "MonitorViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "無効なペアリングコードです"])
-        }
-        
-        // カメラ情報を取得
-        guard let camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraId) else {
-            throw NSError(domain: "MonitorViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "カメラが見つかりません"])
         }
         
         // ペアリング記録を作成

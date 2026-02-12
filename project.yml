@@ -6,6 +6,7 @@ options:
     watchOS: "9.0"
   developmentLanguage: ja
   xcodeVersion: "15.0"
+  knownRegions: [ja, en, es, "pt-BR", ko]
 
 packages:
   Firebase:
@@ -35,6 +36,16 @@ targets:
         type: file
       - path: MioCam/Resources/disconnection_sound.caf
         type: file
+      - path: MioCam/Resources/ja.lproj
+        type: folder
+      - path: MioCam/Resources/en.lproj
+        type: folder
+      - path: MioCam/Resources/es.lproj
+        type: folder
+      - path: MioCam/Resources/pt-BR.lproj
+        type: folder
+      - path: MioCam/Resources/ko.lproj
+        type: folder
     info:
       path: MioCam/Resources/Info.plist
       properties:
@@ -119,6 +130,16 @@ targets:
     resources:
       - path: MioCamWatch/Resources/Assets.xcassets
         type: assetCatalog
+      - path: MioCamWatch/Resources/ja.lproj
+        type: folder
+      - path: MioCamWatch/Resources/en.lproj
+        type: folder
+      - path: MioCamWatch/Resources/es.lproj
+        type: folder
+      - path: MioCamWatch/Resources/pt-BR.lproj
+        type: folder
+      - path: MioCamWatch/Resources/ko.lproj
+        type: folder
     info:
       path: MioCamWatch/Resources/Info.plist
       properties:

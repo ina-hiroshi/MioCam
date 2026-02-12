@@ -1,0 +1,136 @@
+/* LiveView */
+"live_view_title" = "라이브 뷰";
+"connection_error" = "연결 오류";
+"connection_timeout" = "연결 시간 초과";
+"reconnecting" = "재연결 중...";
+"connecting" = "연결 중...";
+"connection_please_retry" = "연결이 지연되고 있습니다. 다시 시도해 주세요.";
+"retry" = "재시도";
+"auth_required" = "인증이 필요합니다";
+"connection_timing_out" = "연결이 지연되고 있습니다. 네트워크 연결을 확인해 주세요.";
+"camera_not_found" = "카메라를 찾을 수 없습니다";
+"camera_offline" = "카메라 오프라인";
+"camera_went_offline" = "카메라가 오프라인되었습니다";
+"connection_lost" = "연결 끊김";
+"connection_lost_reconnect_failed" = "연결이 끊어졌습니다. 재연결에 실패했습니다.";
+"camera_info_fetch_failed" = "카메라 정보를 가져오지 못했습니다: %@";
+"camera_info_unavailable" = "카메라 정보를 사용할 수 없습니다";
+"answer_set_failed" = "Answer 설정 실패: %@";
+"answer_receive_failed" = "Answer 수신 실패: %@";
+
+/* QRScannerView */
+"scan_qr_prompt" = "카메라의 QR 코드를 스캔하세요";
+"code_manual_entry" = "코드 직접 입력";
+"qr_scan_title" = "QR 스캔";
+"cancel" = "취소";
+"camera_pairing_info" = "카메라 페어링 정보를 입력하세요";
+"camera_id" = "카메라 ID";
+"camera_id_hint" = "카메라 화면에 표시된 카메라 ID를 입력하세요";
+"camera_id_placeholder" = "카메라 ID 입력";
+"pairing_code" = "페어링 코드";
+"pairing_code_hint" = "6자리 영숫자 코드(예: ABC123)";
+"pairing_code_placeholder" = "6자리 코드 입력";
+"pairing" = "페어링";
+"manual_entry_title" = "직접 입력";
+"invalid_qr_message" = "잘못된 QR 코드입니다. 카메라 앱의 QR을 스캔해 주세요.";
+
+/* BlackoutView / Camera */
+"camera" = "카메라";
+
+/* MioCamApp */
+"app_name" = "MioCam";
+"select_role_prompt" = "이 기기의 역할을 선택하세요";
+"camera_role" = "카메라";
+"camera_role_desc" = "이 기기에서 영상 스트리밍";
+"monitor_role" = "모니터";
+"monitor_role_desc" = "다른 기기의 영상 보기";
+"sign_out" = "로그아웃";
+
+/* SignInWithAppleView */
+"tagline" = "기기를 세계에서 가장 간단한 케어 창으로 만드세요.";
+"sign_in_apple_prompt" = "Apple로 로그인으로 간편하게 시작하세요";
+"auth_error_simulator" = "인증 오류. 실제 기기에서 실행해 주세요.";
+"auth_canceled" = "인증이 취소되었습니다.";
+"auth_invalid_response" = "잘못된 인증 응답입니다.";
+"auth_not_handled" = "인증 요청을 처리할 수 없습니다.";
+"auth_failed" = "인증에 실패했습니다.";
+"auth_not_interactive" = "인증을 대화형으로 처리할 수 없습니다.";
+"auth_matched_excluded" = "제외된 자격 증명이 일치합니다.";
+"auth_unknown_error" = "알 수 없는 인증 오류: %@";
+"auth_device_setting_error" = "기기 설정에 문제가 있습니다. 실제 기기에서 실행해 주세요.";
+
+/* MonitorModeView */
+"monitor_title" = "모니터";
+"pairing_error" = "페어링 오류";
+"error" = "오류";
+"no_paired_cameras" = "페어링된 카메라 없음";
+"scan_to_pair" = "카메라의 QR 코드를 스캔하여\n페어링하세요";
+"qr_scan_button" = "QR 코드 스캔";
+"cameras_connected_format" = "%d개 연결됨";
+"loading" = "로딩 중...";
+"pairing_in_progress" = "페어링 중...";
+
+/* CameraSettingsSheet */
+"show_qr_code" = "QR 코드 표시";
+"regenerate_pairing_code" = "페어링 코드 재생성";
+"connected_monitors" = "연결된 모니터";
+"no_connected_monitors" = "연결된 모니터 없음";
+"camera_name" = "카메라 이름";
+"camera_name_placeholder" = "카메라 이름 입력";
+"stop_camera" = "카메라 중지";
+"account" = "계정";
+"version" = "버전";
+"camera_settings_title" = "카메라 설정";
+"done" = "완료";
+"regenerate" = "재생성";
+"regenerate_pairing_alert_message" = "페어링 코드를 재생성합니다.";
+"regenerate_pairing_alert_detail" = "재생성하면 연결된 모든 모니터가 연결 해제됩니다. 계속하시겠습니까?";
+"stop" = "중지";
+"stop_camera_alert_message" = "카메라를 중지하면 모든 모니터와의 연결이 끊어집니다.";
+"camera_not_registered" = "카메라가 등록되지 않았습니다. 카메라를 실행한 후 다시 시도해 주세요.";
+"pairing_alternative" = "QR 없이 페어링";
+"tap_to_copy" = "탭하여 복사";
+"back_to_qr" = "QR 코드로 돌아가기";
+"qr_instruction" = "모니터에서 이 QR 코드를 스캔하세요";
+"qr_code_title" = "QR 코드";
+"close" = "닫기";
+
+/* CameraModeView */
+"camera_access_required" = "카메라 액세스 필요";
+"camera_access_hint" = "설정에서 카메라 액세스를 허용하세요";
+"open_settings" = "설정 열기";
+"camera_access_alert_title" = "카메라 액세스";
+"camera_access_alert_message" = "카메라를 사용하려면 설정에서 카메라 액세스를 허용하세요.";
+"camera_registration_failed" = "카메라 등록 실패";
+"waiting_for_monitors" = "모니터 연결 대기 중...";
+"camera_preparing" = "카메라 준비 중...";
+
+/* AppSettingsSheet */
+"user_name" = "사용자 이름";
+"display_name_placeholder" = "표시 이름 입력";
+"save" = "저장";
+"delete_account" = "계정 삭제";
+"settings_title" = "설정";
+"delete_account_confirm" = "계정과 데이터가 영구적으로 삭제됩니다. 삭제하시겠습니까?";
+"display_name_required" = "이름을 입력하세요";
+
+/* DeleteAccountReauthSheet */
+"delete_account_reauth_message" = "계정 삭제를 위해 다시 로그인하세요";
+"delete_account_title" = "계정 삭제";
+
+/* MonitorSettingsSheet */
+"camera_info" = "카메라 정보";
+"device_model" = "기기 모델";
+"connection_status" = "연결 상태";
+"status" = "상태";
+"online" = "온라인";
+"offline" = "오프라인";
+"battery" = "배터리";
+"disconnect_camera" = "카메라 연결 해제";
+"monitor_settings_title" = "모니터 설정";
+"disconnect" = "연결 해제";
+"disconnect_button" = "해제";
+"delete_confirm" = "삭제";
+"disconnect_confirm_message" = "이 카메라와의 연결을 해제하시겠습니까? 다시 연결하려면 QR 코드를 스캔해야 합니다.";
+"unknown" = "알 수 없음";
+"anonymous_user" = "익명 사용자";

@@ -1,0 +1,9 @@
+/* MioCamWatch */
+"app_name" = "MioCam";
+"loading" = "로딩 중...";
+"no_paired_cameras" = "페어링된 카메라 없음";
+"status" = "상태";
+"connection_status" = "연결 상태";
+"online" = "온라인";
+"offline" = "오프라인";
+"battery" = "배터리";

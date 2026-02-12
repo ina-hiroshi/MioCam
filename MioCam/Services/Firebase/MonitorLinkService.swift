@@ -79,16 +79,17 @@ class MonitorLinkService {
         ])
     }
     
-    /// カメラの存在確認とpairingCode検証
-    func verifyCamera(cameraId: String, pairingCode: String) async throws -> Bool {
+    /// カメラの存在確認とpairingCode検証を行い、検証成功時にCameraModelを返す（Firestore read 1回で済む）
+    func verifyAndGetCamera(cameraId: String, pairingCode: String) async throws -> CameraModel? {
         let cameraDoc = try await db.collection("cameras").document(cameraId).getDocument()
         
         guard let data = cameraDoc.data(),
-              let storedPairingCode = data["pairingCode"] as? String else {
-            return false
+              let storedPairingCode = data["pairingCode"] as? String,
+              storedPairingCode == pairingCode else {
+            return nil
         }
         
-        return storedPairingCode == pairingCode
+        return try? cameraDoc.data(as: CameraModel.self)
     }
     
     /// カメラ名を更新（すべてのモニターリンクのcameraDeviceNameを更新）

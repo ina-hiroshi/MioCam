@@ -1,0 +1,136 @@
+/* LiveView */
+"live_view_title" = "Visualização ao vivo";
+"connection_error" = "Erro de conexão";
+"connection_timeout" = "Conexão expirou";
+"reconnecting" = "Reconectando...";
+"connecting" = "Conectando...";
+"connection_please_retry" = "A conexão está demorando. Tente novamente.";
+"retry" = "Tentar novamente";
+"auth_required" = "Autenticação necessária";
+"connection_timing_out" = "A conexão está demorando. Verifique sua rede.";
+"camera_not_found" = "Câmera não encontrada";
+"camera_offline" = "Câmera offline";
+"camera_went_offline" = "A câmera ficou offline";
+"connection_lost" = "Conexão perdida";
+"connection_lost_reconnect_failed" = "Conexão perdida. Falha na reconexão.";
+"camera_info_fetch_failed" = "Falha ao obter info. da câmera: %@";
+"camera_info_unavailable" = "Info. da câmera indisponível";
+"answer_set_failed" = "Falha ao definir Answer: %@";
+"answer_receive_failed" = "Falha ao receber Answer: %@";
+
+/* QRScannerView */
+"scan_qr_prompt" = "Escaneie o QR da câmera";
+"code_manual_entry" = "Inserir código manualmente";
+"qr_scan_title" = "Escanear QR";
+"cancel" = "Cancelar";
+"camera_pairing_info" = "Insira as informações de pareamento da câmera";
+"camera_id" = "ID da câmera";
+"camera_id_hint" = "Insira o ID da câmera exibido na tela da câmera";
+"camera_id_placeholder" = "Insira ID da câmera";
+"pairing_code" = "Código de pareamento";
+"pairing_code_hint" = "Código alfanumérico de 6 caracteres (ex.: ABC123)";
+"pairing_code_placeholder" = "Insira código de 6 caracteres";
+"pairing" = "Parear";
+"manual_entry_title" = "Entrada manual";
+"invalid_qr_message" = "QR inválido. Escaneie o QR do app da câmera.";
+
+/* BlackoutView / Camera */
+"camera" = "Câmera";
+
+/* MioCamApp */
+"app_name" = "MioCam";
+"select_role_prompt" = "Selecione a função deste dispositivo";
+"camera_role" = "Câmera";
+"camera_role_desc" = "Transmitir vídeo deste dispositivo";
+"monitor_role" = "Monitor";
+"monitor_role_desc" = "Ver vídeo de outro dispositivo";
+"sign_out" = "Sair";
+
+/* SignInWithAppleView */
+"tagline" = "Transforme seu dispositivo na janela de cuidado mais simples do mundo.";
+"sign_in_apple_prompt" = "Comece facilmente com Entrar com Apple";
+"auth_error_simulator" = "Erro de autenticação. Execute em dispositivo real.";
+"auth_canceled" = "Autenticação cancelada.";
+"auth_invalid_response" = "Resposta de autenticação inválida.";
+"auth_not_handled" = "Solicitação de autenticação não processada.";
+"auth_failed" = "Autenticação falhou.";
+"auth_not_interactive" = "Autenticação não pôde ser processada interativamente.";
+"auth_matched_excluded" = "Credencial excluída correspondente.";
+"auth_unknown_error" = "Erro de autenticação desconhecido: %@";
+"auth_device_setting_error" = "Problema nas configurações do dispositivo. Execute em dispositivo real.";
+
+/* MonitorModeView */
+"monitor_title" = "Monitor";
+"pairing_error" = "Erro de pareamento";
+"error" = "Erro";
+"no_paired_cameras" = "Nenhuma câmera pareada";
+"scan_to_pair" = "Escaneie o QR da câmera\npara parear";
+"qr_scan_button" = "Escanear código QR";
+"cameras_connected_format" = "%d conectados";
+"loading" = "Carregando...";
+"pairing_in_progress" = "Pareando...";
+
+/* CameraSettingsSheet */
+"show_qr_code" = "Mostrar código QR";
+"regenerate_pairing_code" = "Regenerar código de pareamento";
+"connected_monitors" = "Monitores conectados";
+"no_connected_monitors" = "Nenhum monitor conectado";
+"camera_name" = "Nome da câmera";
+"camera_name_placeholder" = "Insira nome da câmera";
+"stop_camera" = "Parar câmera";
+"account" = "Conta";
+"version" = "Versão";
+"camera_settings_title" = "Configurações da câmera";
+"done" = "Concluído";
+"regenerate" = "Regenerar";
+"regenerate_pairing_alert_message" = "Regenerar o código de pareamento.";
+"regenerate_pairing_alert_detail" = "Regenerar desconectará todos os monitores. Continuar?";
+"stop" = "Parar";
+"stop_camera_alert_message" = "Parar a câmera desconectará todos os monitores.";
+"camera_not_registered" = "Câmera não registrada. Inicie a câmera e tente novamente.";
+"pairing_alternative" = "Parear sem QR";
+"tap_to_copy" = "Toque para copiar";
+"back_to_qr" = "Voltar ao QR";
+"qr_instruction" = "Escaneie este QR no monitor";
+"qr_code_title" = "Código QR";
+"close" = "Fechar";
+
+/* CameraModeView */
+"camera_access_required" = "Acesso à câmera necessário";
+"camera_access_hint" = "Permita o acesso à câmera em Ajustes";
+"open_settings" = "Abrir Ajustes";
+"camera_access_alert_title" = "Acesso à câmera";
+"camera_access_alert_message" = "Para usar a câmera, permita o acesso em Ajustes.";
+"camera_registration_failed" = "Falha ao registrar a câmera";
+"waiting_for_monitors" = "Aguardando monitores...";
+"camera_preparing" = "Preparando câmera...";
+
+/* AppSettingsSheet */
+"user_name" = "Nome do usuário";
+"display_name_placeholder" = "Insira nome para exibir";
+"save" = "Salvar";
+"delete_account" = "Excluir conta";
+"settings_title" = "Ajustes";
+"delete_account_confirm" = "Sua conta e dados serão excluídos permanentemente. Excluir?";
+"display_name_required" = "Insira um nome";
+
+/* DeleteAccountReauthSheet */
+"delete_account_reauth_message" = "Entre novamente para excluir sua conta";
+"delete_account_title" = "Excluir conta";
+
+/* MonitorSettingsSheet */
+"camera_info" = "Info. da câmera";
+"device_model" = "Modelo do dispositivo";
+"connection_status" = "Status da conexão";
+"status" = "Status";
+"online" = "Online";
+"offline" = "Offline";
+"battery" = "Bateria";
+"disconnect_camera" = "Desconectar câmera";
+"monitor_settings_title" = "Configurações do monitor";
+"disconnect" = "Desconectar";
+"disconnect_button" = "Desconectar";
+"delete_confirm" = "Excluir";
+"disconnect_confirm_message" = "Desconectar desta câmera? Será necessário escanear o QR para reconectar.";
+"unknown" = "Desconhecido";
+"anonymous_user" = "Usuário anônimo";

@@ -24,9 +24,9 @@ struct MonitorSettingsSheet: View {
         NavigationStack {
             List {
                 // カメラ情報
-                Section(header: Text("カメラ情報")) {
+                Section(header: Text(String(localized: "camera_info"))) {
                     HStack {
-                        Text("カメラ名")
+                        Text(String(localized: "camera_name"))
                             .foregroundColor(.mioTextSecondary)
                         Spacer()
                         Text(cameraLink.cameraDeviceName)
@@ -35,29 +35,29 @@ struct MonitorSettingsSheet: View {
                     
                     if let camera = cameraInfo {
                         HStack {
-                            Text("機種")
+                            Text(String(localized: "device_model"))
                                 .foregroundColor(.mioTextSecondary)
                             Spacer()
-                            Text(camera.deviceModel ?? "不明")
+                            Text(camera.deviceModel ?? String(localized: "unknown"))
                                 .foregroundColor(.mioTextPrimary)
                         }
                         
                         HStack {
-                            Text("接続状態")
+                            Text(String(localized: "connection_status"))
                                 .foregroundColor(.mioTextSecondary)
                             Spacer()
                             HStack(spacing: 6) {
                                 Circle()
                                     .fill(camera.isOnline ? Color.mioSuccess : Color.mioError)
                                     .frame(width: 8, height: 8)
-                                Text(camera.isOnline ? "オンライン" : "オフライン")
+                                Text(camera.isOnline ? String(localized: "online") : String(localized: "offline"))
                                     .foregroundColor(camera.isOnline ? .mioSuccess : .mioError)
                             }
                         }
                         
                         if let batteryLevel = camera.batteryLevel {
                             HStack {
-                                Text("バッテリー")
+                                Text(String(localized: "battery"))
                                     .foregroundColor(.mioTextSecondary)
                                 Spacer()
                                 HStack(spacing: 4) {
@@ -78,7 +78,7 @@ struct MonitorSettingsSheet: View {
                     } label: {
                         HStack {
                             Spacer()
-                            Text("カメラの接続を解除")
+                            Text(String(localized: "disconnect_camera"))
                                 .fontWeight(.semibold)
                             Spacer()
                         }
@@ -88,15 +88,15 @@ struct MonitorSettingsSheet: View {
                 // アカウント情報
                 Section {
                     HStack {
-                        Text("アカウント")
+                        Text(String(localized: "account"))
                             .foregroundColor(.mioTextSecondary)
                         Spacer()
-                        Text(authService.currentUser?.displayName ?? "匿名ユーザー")
+                        Text(authService.currentUser?.displayName ?? String(localized: "anonymous_user"))
                             .foregroundColor(.mioTextSecondary)
                     }
                     
                     HStack {
-                        Text("バージョン")
+                        Text(String(localized: "version"))
                             .foregroundColor(.mioTextSecondary)
                         Spacer()
                         Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
@@ -104,23 +104,23 @@ struct MonitorSettingsSheet: View {
                     }
                 }
             }
-            .navigationTitle("モニター設定")
+            .navigationTitle(String(localized: "monitor_settings_title"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完了") {
+                    Button(String(localized: "done")) {
                         dismiss()
                     }
                 }
             }
         }
-        .alert("接続を解除", isPresented: $showDisconnectAlert) {
-            Button("解除", role: .destructive) {
+        .alert(String(localized: "disconnect"), isPresented: $showDisconnectAlert) {
+            Button(String(localized: "disconnect_button"), role: .destructive) {
                 disconnect()
             }
-            Button("キャンセル", role: .cancel) {}
+            Button(String(localized: "cancel"), role: .cancel) {}
         } message: {
-            Text("このカメラとの接続を解除しますか？再度接続するにはQRコードのスキャンが必要です。")
+            Text(String(localized: "disconnect_confirm_message"))
         }
     }
     
