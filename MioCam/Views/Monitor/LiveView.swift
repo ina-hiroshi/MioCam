@@ -49,11 +49,9 @@ struct LiveView: View {
     @State private var connectedUsers: [String] = []  // 接続中のユーザー名リスト
     @State private var connectedSessionsListener: ListenerRegistration?
     @State private var userDisplayNameCache: [String: String] = [:]  // ユーザーID -> displayNameのキャッシュ
-    @State private var heartbeatTask: Task<Void, Never>?
     @State private var hasCleanedUp = false  // 二重クリーンアップ防止
     
     private let maxReconnectAttempts = 5
-    private let heartbeatIntervalSeconds: UInt64 = 30  // ハートビート更新間隔（秒）
     
     private let webRTCService = WebRTCService.shared
     private let signalingService = SignalingService.shared
@@ -62,7 +60,7 @@ struct LiveView: View {
     // WebRTCServiceDelegate用のヘルパー
     private class WebRTCDelegate: NSObject, WebRTCServiceDelegate {
         var onStateChange: ((WebRTCConnectionState, String) -> Void)?
-        var onRemoteVideoTrack: ((RTCVideoTrack) -> Void)?
+        var onRemoteVideoTrack: ((RTCVideoTrack, String) -> Void)?
         var onRemoteAudioTrack: ((RTCAudioTrack) -> Void)?
         var onICECandidate: ((RTCIceCandidate, String) async -> Void)?
         var onOfferGenerated: ((RTCSessionDescription, String) async -> Void)?
@@ -75,7 +73,7 @@ struct LiveView: View {
         
         nonisolated func webRTCService(_ service: WebRTCService, didReceiveRemoteVideoTrack track: RTCVideoTrack, for sessionId: String) {
             Task { @MainActor in
-                onRemoteVideoTrack?(track)
+                onRemoteVideoTrack?(track, sessionId)
             }
         }
         
@@ -159,8 +157,8 @@ struct LiveView: View {
             delegate.onStateChange = { [self] state, sessionId in
                 handleConnectionStateChange(state, sessionId: sessionId)
             }
-            delegate.onRemoteVideoTrack = { [self] track in
-                handleRemoteVideoTrack(track)
+            delegate.onRemoteVideoTrack = { [self] track, incomingSessionId in
+                handleRemoteVideoTrack(track, incomingSessionId: incomingSessionId)
             }
             delegate.onRemoteAudioTrack = { [self] track in
                 handleRemoteAudioTrack(track)
@@ -173,6 +171,9 @@ struct LiveView: View {
             }
             webRTCDelegate = delegate
             webRTCService.delegate = delegate
+            // #region agent log
+            agentLog(location: "LiveView:176", message: "LiveView.task set delegate", data: ["cameraId": String(cameraLink.cameraId.prefix(8))], hypothesisId: "B")
+            // #endregion agent log
             
             // モニター側のAVAudioSession設定
             backgroundAudioService.startForMonitorMode()
@@ -605,6 +606,9 @@ struct LiveView: View {
             // セッションIDを生成（UUID）
             let newSessionId = UUID().uuidString
             sessionId = newSessionId
+            // #region agent log
+            agentLog(location: "LiveView:607", message: "startConnection new sessionId", data: ["sessionId": String(newSessionId.prefix(8)), "cameraId": String(cameraLink.cameraId.prefix(8))], hypothesisId: "B")
+            // #endregion agent log
             
             // 1. WebRTC接続を開始してOfferを生成
             // Offerはdelegate経由で受け取る（handleOfferGenerated）
@@ -814,17 +818,6 @@ struct LiveView: View {
                 displayName: displayName
             )
             
-            // 同じユーザーの古いセッションを削除（蓄積によるリソース圧迫を防止）
-            do {
-                try await signalingService.deleteExistingSessionsForUser(
-                    cameraId: cameraLink.cameraId,
-                    monitorUserId: monitorUserId,
-                    excludeSessionId: sessionId
-                )
-            } catch {
-                print("古いセッション削除エラー: \(error.localizedDescription)")
-            }
-            
             // 3. セッション監視（Answer・音声設定を1リスナーで取得、DB読み取り削減）
             sessionMonitorListener = signalingService.observeSessionForMonitor(
                 cameraId: cameraLink.cameraId,
@@ -991,13 +984,24 @@ struct LiveView: View {
         }
     }
     
-    func handleRemoteVideoTrack(_ track: RTCVideoTrack) {
+    func handleRemoteVideoTrack(_ track: RTCVideoTrack, incomingSessionId: String) {
+        // #region agent log
+        agentLog(location: "LiveView:994", message: "handleRemoteVideoTrack called", data: [
+            "incomingSessionId": String(incomingSessionId.prefix(8)),
+            "selfSessionId": String((sessionId ?? "nil").prefix(8)),
+            "match": incomingSessionId == (sessionId ?? ""),
+            "isConnectingBefore": isConnecting
+        ], hypothesisId: "A")
+        // #endregion agent log
         #if DEBUG
         print("handleRemoteVideoTrack: リモートビデオトラックを受信しました")
         #endif
         
         // リモートビデオトラックを受信
         videoTrack = track
+        // #region agent log
+        agentLog(location: "LiveView:1009", message: "videoTrack set, isConnecting=false", data: ["trackPtr": "\(ObjectIdentifier(track))"], hypothesisId: "E")
+        // #endregion agent log
         isConnecting = false
         connectionError = nil
         connectionTimedOut = false
@@ -1005,29 +1009,12 @@ struct LiveView: View {
         connectionTimeoutTask?.cancel()
         connectionTimeoutTask = nil
         
-        // 接続確立後にハートビートを開始
-        startHeartbeat()
         // 接続確立後に接続済みセッションの監視を開始
         if connectedSessionsListener == nil, let sessionId = sessionId {
             #if DEBUG
             print("handleRemoteVideoTrack: 接続済みセッションの監視を開始します")
             #endif
             startObservingConnectedSessions(cameraId: cameraLink.cameraId, currentSessionId: sessionId)
-        }
-    }
-    
-    /// ハートビートタスクを開始（30秒ごとにFirestoreのlastHeartbeatを更新）
-    private func startHeartbeat() {
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
-        guard let sid = sessionId else { return }
-        let cameraId = cameraLink.cameraId
-        heartbeatTask = Task { @MainActor in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: heartbeatIntervalSeconds * 1_000_000_000)
-                guard !Task.isCancelled, sessionId == sid else { return }
-                try? await signalingService.updateHeartbeat(cameraId: cameraId, sessionId: sid)
-            }
         }
     }
     
@@ -1080,16 +1067,11 @@ struct LiveView: View {
             
             // WebRTC接続完了後にスピーカー出力を確実にする
             backgroundAudioService.ensureSpeakerOutput()
-            // 接続確立後にハートビートを開始
-            startHeartbeat()
             // 接続確立後に接続済みセッションの監視を開始（まだ開始されていない場合）
             if connectedSessionsListener == nil, let currentSessionId = self.sessionId {
                 startObservingConnectedSessions(cameraId: cameraLink.cameraId, currentSessionId: currentSessionId)
             }
         case .disconnected, .failed:
-            // ハートビートを停止
-            heartbeatTask?.cancel()
-            heartbeatTask = nil
             // タイムアウトタスクをキャンセル
             connectionTimeoutTask?.cancel()
             connectionTimeoutTask = nil
@@ -1157,10 +1139,6 @@ struct LiveView: View {
         guard !hasCleanedUp else { return }
         hasCleanedUp = true
         
-        // ハートビートタスクを停止
-        heartbeatTask?.cancel()
-        heartbeatTask = nil
-        
         // すべてのタスクをキャンセル
         hideOverlayTask?.cancel()
         hideOverlayTask = nil
@@ -1202,6 +1180,9 @@ struct LiveView: View {
             }
         }
         
+        // #region agent log
+        agentLog(location: "LiveView:1205", message: "performCleanup setting delegate=nil", data: ["sessionId": String((sessionId ?? "nil").prefix(8))], hypothesisId: "B")
+        // #endregion agent log
         webRTCService.delegate = nil
         webRTCDelegate = nil
         

@@ -41,8 +41,7 @@ class SignalingService {
             "pairingCode": pairingCode,
             "offer": offer,
             "status": SessionModel.SessionStatus.waiting.rawValue,
-            "createdAt": FieldValue.serverTimestamp(),
-            "lastHeartbeat": FieldValue.serverTimestamp()
+            "createdAt": FieldValue.serverTimestamp()
         ]
         
         // displayNameが提供されている場合は追加
@@ -60,17 +59,7 @@ class SignalingService {
             .collection("sessions").document(sessionId)
             .updateData([
                 "answer": answer,
-                "status": SessionModel.SessionStatus.connected.rawValue,
-                "lastHeartbeat": FieldValue.serverTimestamp()
-            ])
-    }
-    
-    /// ハートビートを更新（モニター側: 30秒ごとに呼び出して接続生存を通知）
-    func updateHeartbeat(cameraId: String, sessionId: String) async throws {
-        try await db.collection("cameras").document(cameraId)
-            .collection("sessions").document(sessionId)
-            .updateData([
-                "lastHeartbeat": FieldValue.serverTimestamp()
+                "status": SessionModel.SessionStatus.connected.rawValue
             ])
     }
     
@@ -97,30 +86,6 @@ class SignalingService {
         try await db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)
             .delete()
-    }
-    
-    /// 同じmonitorUserIdの既存セッションを削除（現在のセッションIDを除く）
-    func deleteExistingSessionsForUser(cameraId: String, monitorUserId: String, excludeSessionId: String) async throws {
-        let snapshot = try await db.collection("cameras").document(cameraId)
-            .collection("sessions")
-            .whereField("monitorUserId", isEqualTo: monitorUserId)
-            .getDocuments()
-        
-        let sessionsToDelete = snapshot.documents.filter { doc in
-            doc.documentID != excludeSessionId
-        }
-        
-        if !sessionsToDelete.isEmpty {
-            let batch = db.batch()
-            for doc in sessionsToDelete {
-                batch.deleteDocument(doc.reference)
-            }
-            try await batch.commit()
-            
-            #if DEBUG
-            print("SignalingService: 同じユーザーの既存セッション \(sessionsToDelete.count)件を削除しました")
-            #endif
-        }
     }
     
     // MARK: - セッション監視

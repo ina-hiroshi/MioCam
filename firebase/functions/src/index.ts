@@ -5,9 +5,8 @@ import * as admin from "firebase-admin";
 admin.initializeApp();
 
 const db = admin.firestore();
-const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const ONE_HOUR_MS = 60 * 60 * 1000;
-const TWO_MINUTES_MS = 2 * 60 * 1000; // ハートビートタイムアウト
+const FIFTEEN_MINUTES_MS = 15 * 60 * 1000;
 const BATCH_LIMIT = 500; // Firestore batch操作の上限
 
 /**
@@ -40,18 +39,18 @@ async function deleteInBatches(
 }
 
 /**
- * 作成から5分以内に `connected` にならなかったセッションを自動削除
- * スケジュール: 5分ごとに実行
+ * 作成から15分以内に `connected` にならなかったセッションを自動削除
+ * スケジュール: 15分ごとに実行
  */
 export const cleanupStaleSessions = onSchedule(
   {
-    schedule: "*/5 * * * *",
+    schedule: "*/15 * * * *",
     timeZone: "Asia/Tokyo",
     region: "asia-northeast1",
   },
   async () => {
     const now = Date.now();
-    const cutoffTime = now - FIVE_MINUTES_MS;
+    const cutoffTime = now - FIFTEEN_MINUTES_MS;
 
     try {
       // 全カメラのセッションをスキャン
@@ -74,51 +73,54 @@ export const cleanupStaleSessions = onSchedule(
 );
 
 /**
- * lastHeartbeatが2分以上更新されていないconnectedセッションをdisconnectedに更新
- * モニターアプリクラッシュ時などの検知に使用
- * スケジュール: 5分ごとに実行
+ * 親カメラがオフラインかつlastSeenAtが1時間以上前の孤立したconnectedセッションを削除
+ * カメラ・モニター両方クラッシュ時の残存セッションをクリーンアップ
+ * スケジュール: 1時間ごとに実行
  */
-export const cleanupStaleHeartbeatSessions = onSchedule(
+export const cleanupOrphanedSessions = onSchedule(
   {
-    schedule: "*/5 * * * *",
+    schedule: "0 * * * *",
     timeZone: "Asia/Tokyo",
     region: "asia-northeast1",
   },
   async () => {
     const now = Date.now();
-    const cutoffTime = now - TWO_MINUTES_MS;
+    const cutoffTime = now - ONE_HOUR_MS;
 
     try {
       const sessionsSnapshot = await db.collectionGroup("sessions")
         .where("status", "==", "connected")
         .get();
 
-      const docsToUpdate: admin.firestore.QueryDocumentSnapshot[] = [];
+      const docsToDelete: admin.firestore.QueryDocumentSnapshot[] = [];
       for (const doc of sessionsSnapshot.docs) {
-        const data = doc.data();
-        const lastHeartbeat = data.lastHeartbeat as
+        // 親カメラドキュメントを取得 (cameras/{cameraId}/sessions/{sessionId})
+        const cameraRef = doc.ref.parent.parent;
+        if (!cameraRef) continue;
+
+        const cameraDoc = await cameraRef.get();
+        if (!cameraDoc.exists) continue;
+
+        const cameraData = cameraDoc.data();
+        const isOnline = cameraData?.isOnline === true;
+        const lastSeenAt = cameraData?.lastSeenAt as
           admin.firestore.Timestamp | undefined;
-        if (!lastHeartbeat || lastHeartbeat.toMillis() < cutoffTime) {
-          docsToUpdate.push(doc);
+
+        // 親カメラがオフライン AND lastSeenAtが1時間以上前 → 孤立セッションとして削除
+        if (!isOnline && lastSeenAt && lastSeenAt.toMillis() < cutoffTime) {
+          docsToDelete.push(doc);
         }
       }
 
-      if (docsToUpdate.length > 0) {
-        for (let i = 0; i < docsToUpdate.length; i += BATCH_LIMIT) {
-          const chunk = docsToUpdate.slice(i, i + BATCH_LIMIT);
-          const batch = db.batch();
-          for (const doc of chunk) {
-            batch.update(doc.ref, {status: "disconnected"});
-          }
-          await batch.commit();
-        }
+      if (docsToDelete.length > 0) {
+        const deletedCount = await deleteInBatches(docsToDelete);
         console.log(
-          `Updated ${docsToUpdate.length} stale heartbeat sessions to disconnected`
+          `Deleted ${deletedCount} orphaned sessions (camera offline >1h)`
         );
       }
     } catch (error) {
       console.error(
-        "Error cleaning up stale heartbeat sessions:", error
+        "Error cleaning up orphaned sessions:", error
       );
       throw error;
     }
@@ -205,8 +207,8 @@ export const onSessionCreated = onDocumentCreated(
           await batch.commit();
         }
         console.log(
-          `onSessionCreated: Updated ${docsToUpdate.length} old sessions to disconnected ` +
-          `for user ${monitorUserId} in camera ${cameraId}`
+          `onSessionCreated: Updated ${docsToUpdate.length} old sessions ` +
+          `to disconnected for user ${monitorUserId} in camera ${cameraId}`
         );
       }
     } catch (error) {

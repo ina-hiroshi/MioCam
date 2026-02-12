@@ -20,7 +20,6 @@ struct SessionModel: Codable, Identifiable {
     var status: SessionStatus
     var isAudioEnabled: Bool? // カメラ側からの音声送信が有効かどうか（デフォルト: false）
     var createdAt: Timestamp
-    var lastHeartbeat: Timestamp? // モニター側が30秒ごとに更新、切断検知に使用
     
     enum SessionStatus: String, Codable {
         case waiting
@@ -39,7 +38,6 @@ struct SessionModel: Codable, Identifiable {
         case status
         case isAudioEnabled
         case createdAt
-        case lastHeartbeat
     }
     
     // SDPは[String: Any]として扱うため、カスタムエンコード/デコードが必要
@@ -53,7 +51,6 @@ struct SessionModel: Codable, Identifiable {
         status = try container.decode(SessionStatus.self, forKey: .status)
         isAudioEnabled = try container.decodeIfPresent(Bool.self, forKey: .isAudioEnabled)
         createdAt = try container.decode(Timestamp.self, forKey: .createdAt)
-        lastHeartbeat = try container.decodeIfPresent(Timestamp.self, forKey: .lastHeartbeat)
         
         // SDPは[String: Any]としてデコードを試みる
         // Firestoreから直接取得する場合は、doc.data()から取得する方が確実
@@ -80,7 +77,6 @@ struct SessionModel: Codable, Identifiable {
         self.status = status
         self.isAudioEnabled = documentData["isAudioEnabled"] as? Bool
         self.createdAt = createdAt
-        self.lastHeartbeat = documentData["lastHeartbeat"] as? Timestamp
         
         // SDPを[String: Any]として取得
         self.offer = documentData["offer"] as? [String: Any]
@@ -97,7 +93,6 @@ struct SessionModel: Codable, Identifiable {
         try container.encode(status, forKey: .status)
         try container.encodeIfPresent(isAudioEnabled, forKey: .isAudioEnabled)
         try container.encode(createdAt, forKey: .createdAt)
-        try container.encodeIfPresent(lastHeartbeat, forKey: .lastHeartbeat)
         // offer/answerは別途Firestoreに書き込む
     }
 }

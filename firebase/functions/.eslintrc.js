@@ -9,7 +9,7 @@ module.exports = {
     sourceType: "module",
     tsconfigRootDir: __dirname,
   },
-  ignorePatterns: [".eslintrc.js"],
+  ignorePatterns: [".eslintrc.js", "scripts/**"],
   plugins: [
     "@typescript-eslint",
     "import",

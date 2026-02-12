@@ -350,45 +350,18 @@ class CameraViewModel: ObservableObject {
     }
     
     /// 接続済みセッションの監視（切断検知用）
+    /// 切断検知は webRTCService(_:didChangeState:for:) に委ねる
     private func startObservingConnectedSessions(cameraId: String) {
         connectedSessionListener = signalingService.observeConnectedSessions(cameraId: cameraId) { [weak self] result in
             Task { @MainActor in
                 switch result {
                 case .success(let sessions):
-                    // ハートビートが古いセッションを検出（2分以上更新なし＝切断扱い）
-                    let heartbeatTimeoutSeconds: TimeInterval = 120
-                    let now = Date()
-                    var staleSessionIds: Set<String> = []
-                    let validSessions = sessions.filter { session in
-                        guard let sessionId = session.id, !sessionId.isEmpty else { return false }
-                        let heartbeat = session.lastHeartbeat ?? session.createdAt
-                        let elapsed = now.timeIntervalSince(heartbeat.dateValue())
-                        if elapsed > heartbeatTimeoutSeconds {
-                            staleSessionIds.insert(sessionId)
-                            return false
-                        }
-                        return true
-                    }
-                    
-                    // 古いセッションをFirestoreでdisconnectedに更新
-                    if !staleSessionIds.isEmpty, let cameraId = self?.cameraId {
-                        for sessionId in staleSessionIds {
-                            Task.detached {
-                                try? await SignalingService.shared.updateSessionStatus(
-                                    cameraId: cameraId,
-                                    sessionId: sessionId,
-                                    status: .disconnected
-                                )
-                            }
-                        }
-                    }
-                    
                     // 現在のconnectedMonitorsと比較して、削除されたセッションを検知
                     let currentSessionIds = Set(self?.connectedMonitors.map { $0.id } ?? [])
-                    let firestoreSessionIds = Set(validSessions.map { $0.id ?? "" }.filter { !$0.isEmpty })
+                    let firestoreSessionIds = Set(sessions.map { $0.id ?? "" }.filter { !$0.isEmpty })
                     
-                    // 削除されたセッション（Firestoreに存在しない、またはハートビート切れ）
-                    let removedSessionIds = currentSessionIds.subtracting(firestoreSessionIds).union(staleSessionIds)
+                    // 削除されたセッション（Firestoreに存在しない）
+                    let removedSessionIds = currentSessionIds.subtracting(firestoreSessionIds)
                     
                     if !removedSessionIds.isEmpty {
                         guard let cameraId = self?.cameraId else { return }
