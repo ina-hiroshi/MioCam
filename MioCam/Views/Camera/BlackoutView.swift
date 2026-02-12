@@ -112,6 +112,11 @@ struct BlackoutView: View {
         
         // アイドルタイマーを無効化（画面が自動でオフにならないようにする）
         UIApplication.shared.isIdleTimerDisabled = true
+        
+        // 接続数が0のときはカメラを停止して省電力化（初回表示時、音声は再生しない）
+        if viewModel.connectedMonitorCount == 0 {
+            CameraCaptureService.shared.stopCapture()
+        }
     }
     
     private func exitBlackoutMode() {

@@ -62,8 +62,10 @@ struct MonitorModeView: View {
             }
         }
         .fullScreenCover(item: $selectedCameraLink) { link in
-            LiveView(viewModel: viewModel, cameraLink: link)
-                .environmentObject(authService)
+            LiveView(viewModel: viewModel, cameraLink: link) {
+                selectedCameraLink = nil
+            }
+            .environmentObject(authService)
         }
         .alert(String(localized: "pairing_error"), isPresented: $showPairingError) {
             Button("OK") {

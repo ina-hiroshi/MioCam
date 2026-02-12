@@ -20,6 +20,8 @@ protocol WebRTCClientDelegate: AnyObject {
 class WebRTCClient: NSObject {
     let sessionId: String
     let peerConnection: RTCPeerConnection
+    /// クライアント作成時刻（ゴースト検出のタイムアウト用）
+    let createdAt: Date
     
     weak var delegate: WebRTCClientDelegate?
     
@@ -42,6 +44,7 @@ class WebRTCClient: NSObject {
     init(sessionId: String, peerConnection: RTCPeerConnection) {
         self.sessionId = sessionId
         self.peerConnection = peerConnection
+        self.createdAt = Date()
         super.init()
     }
     
@@ -56,6 +59,7 @@ class WebRTCClient: NSObject {
     }
     
     /// remote description設定前のICE Candidateをキューに追加
+    /// （async使用: syncだとmainスレッドブロック→setRemoteDescription完了待ちとデッドロックするため）
     func addPendingCandidate(_ candidate: RTCIceCandidate) {
         pendingCandidatesQueue.async { [weak self] in
             self?.pendingICECandidates.append(candidate)
@@ -74,13 +78,26 @@ class WebRTCClient: NSObject {
     /// transceivers からリモートトラックを取得（Unified Plan・フォールバック用）
     /// setRemoteDescription 後にデリゲートが呼ばれない場合に使用
     func extractRemoteTracksFromTransceivers() {
+        #if DEBUG
+        var foundVideo = false
+        var foundAudio = false
+        #endif
         for transceiver in peerConnection.transceivers {
             guard let track = transceiver.receiver.track else { continue }
             // 既に取得済みの場合はスキップ（ビデオ・オーディオそれぞれ1本まで）
             if track is RTCVideoTrack, remoteVideoTrack != nil { continue }
             if track is RTCAudioTrack, remoteAudioTrack != nil { continue }
             handleRemoteTrack(track)
+            #if DEBUG
+            if track is RTCVideoTrack { foundVideo = true }
+            if track is RTCAudioTrack { foundAudio = true }
+            #endif
         }
+        #if DEBUG
+        if foundVideo || foundAudio {
+            print("WebRTC: extractRemoteTracksFromTransceivers トラック取得 - video=\(foundVideo), audio=\(foundAudio), sessionId=\(sessionId.prefix(8))")
+        }
+        #endif
     }
 }
 
@@ -161,7 +178,11 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceConnectionState) {
         let stateNames = ["new", "checking", "connected", "completed", "failed", "disconnected", "closed", "count"]
         let stateName = newState.rawValue < stateNames.count ? stateNames[Int(newState.rawValue)] : "unknown"
-        print("WebRTC: ICE connection state changed: \(stateName) (\(newState.rawValue))")
+        print("WebRTC: ICE connection state changed: \(stateName) (\(newState.rawValue)), sessionId=\(sessionId.prefix(8))")
+        // ICE接続完了時にトラックがまだ無い場合は transceivers から取得
+        if (newState == .connected || newState == .completed) && (remoteVideoTrack == nil || remoteAudioTrack == nil) {
+            extractRemoteTracksFromTransceivers()
+        }
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceGatheringState) {
@@ -193,7 +214,7 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange stateChanged: RTCPeerConnectionState) {
         let stateNames = ["new", "connecting", "connected", "disconnected", "failed", "closed"]
         let stateName = stateChanged.rawValue < stateNames.count ? stateNames[Int(stateChanged.rawValue)] : "unknown"
-        print("WebRTC: Connection state changed: \(stateName) (\(stateChanged.rawValue))")
+        print("WebRTC: Connection state changed: \(stateName) (\(stateChanged.rawValue)), sessionId=\(sessionId.prefix(8))")
         // 接続完了時にトラックがまだ無い場合は transceivers から取得（Unified Plan フォールバック）
         if stateChanged == .connected && (remoteVideoTrack == nil || remoteAudioTrack == nil) {
             extractRemoteTracksFromTransceivers()

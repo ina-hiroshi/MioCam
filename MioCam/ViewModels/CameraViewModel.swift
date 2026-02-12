@@ -257,7 +257,37 @@ class CameraViewModel: ObservableObject {
         }
         processedSessionIds.insert(sessionId)
         
+        // 同一ユーザーの既存セッションをクローズ（再接続時のゴースト蓄積防止）
+        let existingSessionsForUser = connectedMonitors.filter { $0.monitorUserId == session.monitorUserId && $0.id != sessionId }
+        for existing in existingSessionsForUser {
+            let oldSessionId = existing.id
+            iceCandidateListeners[oldSessionId]?.remove()
+            iceCandidateListeners.removeValue(forKey: oldSessionId)
+            webRTCService.closeSession(sessionId: oldSessionId)
+            connectedMonitors.removeAll { $0.id == oldSessionId }
+            processedSessionIds.remove(oldSessionId)
+            Task.detached { [cameraId] in
+                try? await SignalingService.shared.updateSessionStatus(cameraId: cameraId, sessionId: oldSessionId, status: .disconnected)
+                try? await SignalingService.shared.deleteSession(cameraId: cameraId, sessionId: oldSessionId)
+            }
+        }
+        if !existingSessionsForUser.isEmpty {
+            let newCount = connectedMonitors.count
+            if connectedMonitorCount != newCount {
+                connectedMonitorCount = newCount
+                try? await cameraService.updateConnectedMonitorCount(cameraId: cameraId, count: newCount)
+            }
+        }
+        
         do {
+            // カメラが停止中（省電力）の場合は再起動
+            if !CameraCaptureService.shared.isRunning {
+                try await CameraCaptureService.shared.startCapture(position: .back)
+                let preset: AVCaptureSession.Preset = currentQuality == .p1080p ? .hd1920x1080 : .hd1280x720
+                let frameRate: Int32 = 30
+                CameraCaptureService.shared.updateQuality(preset: preset, frameRate: frameRate)
+                WebRTCService.shared.updateVideoEncodingForAllSessions(for1080p: currentQuality == .p1080p)
+            }
             
             // 表示名を取得（セッションから取得、なければデバイス名を使用）
             let displayName = session.displayName ?? session.monitorDeviceName
@@ -290,11 +320,8 @@ class CameraViewModel: ObservableObject {
                                 continue
                             }
                             
-                            do {
-                                try await self?.webRTCService.addICECandidate(sessionId: sessionId, candidate: iceCandidate)
-                            } catch {
-                                // 追加失敗は後続ログで判断するためここでは黙殺
-                            }
+                            // 同期版addICECandidate（async/awaitデッドロック回避）
+                            self?.webRTCService.addICECandidate(sessionId: sessionId, candidate: iceCandidate)
                         }
                     case .failure(let error):
                         print("セッションICE候補監視エラー: \(error.localizedDescription)")
@@ -366,6 +393,13 @@ class CameraViewModel: ObservableObject {
                     if !removedSessionIds.isEmpty {
                         guard let cameraId = self?.cameraId else { return }
                         
+                        // PeerConnectionをクローズ（ゴーストセッション蓄積防止）
+                        for sessionId in removedSessionIds {
+                            self?.iceCandidateListeners[sessionId]?.remove()
+                            self?.iceCandidateListeners.removeValue(forKey: sessionId)
+                            self?.webRTCService.closeSession(sessionId: sessionId)
+                        }
+                        
                         // connectedMonitorsから削除されたセッションを削除
                         self?.connectedMonitors.removeAll { removedSessionIds.contains($0.id) }
                         
@@ -378,6 +412,12 @@ class CameraViewModel: ObservableObject {
                             // Firestoreへの更新は非同期で実行
                             Task.detached {
                                 try? await CameraFirestoreService.shared.updateConnectedMonitorCount(cameraId: cameraId, count: newCount)
+                            }
+                            
+                            // 接続数が0になったときのみカメラを停止し、切断音を再生（省電力化）
+                            if newCount == 0 {
+                                CameraCaptureService.shared.stopCapture()
+                                self?.playDisconnectionSound()
                             }
                         }
                         
@@ -580,6 +620,28 @@ class CameraViewModel: ObservableObject {
     
     /// 帯域幅に基づいて品質を更新
     private func updateQualityBasedOnBandwidth() async {
+        // ゴーストクライアントをクリーンアップ（切断/失敗/クローズ状態で残っているPeerConnection）
+        let closedGhostIds = webRTCService.closeGhostClients()
+        if !closedGhostIds.isEmpty, let cameraId = cameraId {
+            for sessionId in closedGhostIds {
+                iceCandidateListeners[sessionId]?.remove()
+                iceCandidateListeners.removeValue(forKey: sessionId)
+                connectedMonitors.removeAll { $0.id == sessionId }
+                processedSessionIds.remove(sessionId)
+            }
+            let newCount = connectedMonitors.count
+            if connectedMonitorCount != newCount {
+                connectedMonitorCount = newCount
+                try? await cameraService.updateConnectedMonitorCount(cameraId: cameraId, count: newCount)
+            }
+            for sessionId in closedGhostIds {
+                Task.detached { [cameraId] in
+                    try? await SignalingService.shared.updateSessionStatus(cameraId: cameraId, sessionId: sessionId, status: .disconnected)
+                    try? await SignalingService.shared.deleteSession(cameraId: cameraId, sessionId: sessionId)
+                }
+            }
+        }
+        
         // 接続台数が0の場合は前回の品質を維持（接続確立前は品質変更しない）
         guard connectedMonitorCount > 0 else {
             return
@@ -842,9 +904,8 @@ extension CameraViewModel: WebRTCServiceDelegate {
             case .disconnected, .failed, .closed:
                 // 接続が切断された場合、モニター数を減らす
                 guard let cameraId = cameraId else { return }
-                
-                // 切断時に音声を再生
-                playDisconnectionSound()
+                // PeerConnectionを確実にクローズ（ゴーストセッション蓄積防止）
+                webRTCService.closeSession(sessionId: sessionId)
                 
                 // ICE候補リスナーを停止
                 iceCandidateListeners[sessionId]?.remove()
@@ -864,14 +925,22 @@ extension CameraViewModel: WebRTCServiceDelegate {
                     Task.detached { [cameraId, newCount] in
                         try? await CameraFirestoreService.shared.updateConnectedMonitorCount(cameraId: cameraId, count: newCount)
                     }
+                    
+                    // 接続数が0になったときのみカメラを停止し、切断音を再生（省電力化）
+                    if newCount == 0 {
+                        CameraCaptureService.shared.stopCapture()
+                        playDisconnectionSound()
+                    }
                 }
                 
                 // processedSessionIdsからも確実に削除（再接続時に重複チェックでブロックされないように）
                 processedSessionIds.remove(sessionId)
                 
-                // ICE候補リスナーも確実にクリーンアップ
-                iceCandidateListeners[sessionId]?.remove()
-                iceCandidateListeners.removeValue(forKey: sessionId)
+                // Firestoreのセッションを削除（ゴーストセッション蓄積防止）
+                Task.detached { [cameraId, sessionId] in
+                    try? await SignalingService.shared.updateSessionStatus(cameraId: cameraId, sessionId: sessionId, status: .disconnected)
+                    try? await SignalingService.shared.deleteSession(cameraId: cameraId, sessionId: sessionId)
+                }
                 
                 // 帯域幅監視が品質を自動調整するため、ここでは調整しない
             default:
@@ -948,16 +1017,15 @@ extension CameraViewModel: WebRTCServiceDelegate {
         }
     }
     
-    /// 切断時の音声を再生（ポーン）
+    /// 切断時の音声を再生（ポーン）- カメラ停止時のみ呼び出す。スピーカー出力を保証
     private func playDisconnectionSound() {
-        // カスタム音声ファイル「ポーン」を再生
-        if let soundURL = Bundle.main.url(forResource: "disconnection_sound", withExtension: "caf") {
-            var soundID: SystemSoundID = 0
-            AudioServicesCreateSystemSoundID(soundURL as CFURL, &soundID)
-            AudioServicesPlaySystemSound(soundID)
+        if let soundURL = Bundle.main.url(forResource: "disconnection_sound", withExtension: "caf"),
+           let player = try? AVAudioPlayer(contentsOf: soundURL) {
+            try? AVAudioSession.sharedInstance().overrideOutputAudioPort(.speaker)
+            player.volume = 1.0
+            player.play()
         } else {
             // 音声ファイルが見つからない場合はシステムサウンドを使用
-            // 切断時: 通話終了音（下降する音）
             AudioServicesPlaySystemSound(1007) // kSystemSoundID_MailReceived
         }
     }

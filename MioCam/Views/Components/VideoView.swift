@@ -40,12 +40,6 @@ struct VideoView: UIViewRepresentable {
         // 注意: RTCVideoTrackのレンダラーは一度だけ追加する必要がある
         // updateUIViewは頻繁に呼ばれるため、トラックが変更された場合のみ追加
         if let track = videoTrack, context.coordinator.currentTrack !== track {
-            // #region agent log
-            agentLog(location: "VideoView:43", message: "updateUIView track CHANGE", data: [
-                "prevTrack": context.coordinator.currentTrack.map { "\(ObjectIdentifier($0))" } ?? "nil",
-                "newTrack": "\(ObjectIdentifier(track))"
-            ], hypothesisId: "C")
-            // #endregion agent log
             // 前回のトラックからレンダラーを削除（可能な場合）
             if let previousTrack = context.coordinator.currentTrack {
                 previousTrack.remove(uiView)

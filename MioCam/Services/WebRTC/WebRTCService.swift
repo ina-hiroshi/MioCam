@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import WebRTC
+@preconcurrency import WebRTC
 import Combine
 
 /// WebRTC接続状態
@@ -36,7 +36,7 @@ protocol WebRTCServiceDelegate: AnyObject {
 }
 
 /// WebRTC接続を管理するサービス
-class WebRTCService: NSObject {
+class WebRTCService: NSObject, @unchecked Sendable {
     static let shared = WebRTCService()
     
     weak var delegate: WebRTCServiceDelegate?
@@ -161,16 +161,30 @@ class WebRTCService: NSObject {
             }
         }
         
-        // Offerを設定
-        try await client.peerConnection.setRemoteDescription(offer)
+        // Offerを設定（completion handler版を使用 - Swift async版は実機でハングする場合がある）
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            client.peerConnection.setRemoteDescription(offer) { error in
+                if let error = error { continuation.resume(throwing: error) } else { continuation.resume() }
+            }
+        }
         
         // remote description設定後、キューに溜まったICE Candidateを処理
-        await drainPendingICECandidates(sessionId: sessionId)
+        drainPendingICECandidates(sessionId: sessionId)
         
-        // Answerを生成
+        // Answerを生成（completion handler版を使用）
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
-        let answer = try await client.peerConnection.answer(for: constraints)
-        try await client.peerConnection.setLocalDescription(answer)
+        let answer: RTCSessionDescription = try await withCheckedThrowingContinuation { continuation in
+            client.peerConnection.answer(for: constraints) { sdp, error in
+                if let error = error { continuation.resume(throwing: error) }
+                else if let sdp = sdp { continuation.resume(returning: sdp) }
+                else { continuation.resume(throwing: WebRTCError.answerCreationFailed) }
+            }
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            client.peerConnection.setLocalDescription(answer) { error in
+                if let error = error { continuation.resume(throwing: error) } else { continuation.resume() }
+            }
+        }
         
         // SDP設定後にエンコーディングパラメータを設定（初期値は1080p、解像度優先）
         // 注意: SDPが設定された後にパラメータを設定する必要がある場合があります
@@ -211,8 +225,19 @@ class WebRTCService: NSObject {
             ],
             optionalConstraints: nil
         )
-        let offer = try await client.peerConnection.offer(for: constraints)
-        try await client.peerConnection.setLocalDescription(offer)
+        // completion handler版を使用（Swift async版は実機でハングする場合がある）
+        let offer: RTCSessionDescription = try await withCheckedThrowingContinuation { continuation in
+            client.peerConnection.offer(for: constraints) { sdp, error in
+                if let error = error { continuation.resume(throwing: error) }
+                else if let sdp = sdp { continuation.resume(returning: sdp) }
+                else { continuation.resume(throwing: WebRTCError.offerCreationFailed) }
+            }
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            client.peerConnection.setLocalDescription(offer) { error in
+                if let error = error { continuation.resume(throwing: error) } else { continuation.resume() }
+            }
+        }
         
         delegate?.webRTCService(self, didGenerateOffer: offer, for: sessionId)
     }
@@ -231,21 +256,44 @@ class WebRTCService: NSObject {
         }
         
         print("WebRTCService.handleAnswer: Answerを設定します - \(sessionId), signalingState=\(client.peerConnection.signalingState.rawValue)")
-        do {
-            try await client.peerConnection.setRemoteDescription(answer)
-            print("WebRTCService.handleAnswer: Answerを設定しました - \(sessionId)")
-        } catch {
-            print("WebRTCService.handleAnswer: Answer設定エラー - \(error.localizedDescription)")
-            throw error
+        // completion handler版を使用（Swift async版は実機でcompletionが返らないケースがあるため）
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            client.peerConnection.setRemoteDescription(answer) { error in
+                if let error = error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume()
+                }
+            }
         }
+        // 即座にキューをドレイン（setRemoteDescription直後に実行し、既にキューされた候補を取りこぼさない）
+        let immediatePending = client.drainPendingCandidates()
+        for c in immediatePending {
+            client.peerConnection.add(c) { _ in }
+        }
+        print("WebRTCService.handleAnswer: Answerを設定しました - \(sessionId)")
         
         // Unified Plan: デリゲートが呼ばれない場合のフォールバック - transceivers からトラックを取得
         if client.remoteVideoTrack == nil || client.remoteAudioTrack == nil {
             client.extractRemoteTracksFromTransceivers()
         }
         
-        // remote description設定後、キューに溜まったICE Candidateを同期的に即座に処理
-        // （タイミング問題: ICE候補はAnswerより先に届くため、キューに溜まっている）
+        // 遅延フォールバック: receiver.track が非同期で設定される実装に対応（複数回試行）
+        let sid = sessionId
+        for delay in [0.3, 0.8, 1.5] as [Double] {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                guard let self,
+                      let c = self.clients[sid],
+                      c.remoteVideoTrack == nil || c.remoteAudioTrack == nil else { return }
+                c.extractRemoteTracksFromTransceivers()
+                #if DEBUG
+                print("WebRTCService.handleAnswer: 遅延フォールバック(\(delay)s)でtransceiversからトラック取得試行 - \(sid.prefix(8))")
+                #endif
+            }
+        }
+        
+        // remote description設定後、キューに溜まったICE Candidateを処理（fire-and-forget）
         let pendingCandidates = client.drainPendingCandidates()
         #if DEBUG
         if !pendingCandidates.isEmpty {
@@ -254,22 +302,20 @@ class WebRTCService: NSObject {
         #endif
         
         for candidate in pendingCandidates {
-            do {
-                try await client.peerConnection.add(candidate)
-            } catch {
-                print("WebRTCService.handleAnswer: キューからICE候補追加エラー - \(error.localizedDescription)")
+            client.peerConnection.add(candidate) { error in
+                if let error = error {
+                    print("WebRTCService.handleAnswer: キューからICE候補追加エラー - \(error.localizedDescription)")
+                }
             }
         }
     }
     
     // MARK: - Common
     
-    /// ICE Candidateを追加
-    func addICECandidate(sessionId: String, candidate: RTCIceCandidate) async throws {
-        guard let client = clients[sessionId] else {
-            throw WebRTCError.sessionNotFound
-        }
-        
+    /// ICE Candidateを追加（同期版 - async/awaitデッドロック回避）
+    /// setRemoteDescription完了前はキューに保存、完了後はfire-and-forgetで直接追加
+    func addICECandidate(sessionId: String, candidate: RTCIceCandidate) {
+        guard let client = clients[sessionId] else { return }
         // remote descriptionが設定されていない場合はキューに保存
         guard client.peerConnection.remoteDescription != nil else {
             client.addPendingCandidate(candidate)
@@ -278,15 +324,20 @@ class WebRTCService: NSObject {
             #endif
             return
         }
-        
-        try await client.peerConnection.add(candidate)
-        #if DEBUG
-        print("WebRTCService: ICE候補追加成功 - \(candidate.sdp.prefix(80))")
-        #endif
+        // completion handler版で直接追加（fire-and-forget、awaitしない）
+        client.peerConnection.add(candidate) { error in
+            #if DEBUG
+            if let error = error {
+                print("WebRTCService: ICE候補追加エラー - \(error.localizedDescription)")
+            } else {
+                print("WebRTCService: ICE候補追加成功 - \(candidate.sdp.prefix(80))")
+            }
+            #endif
+        }
     }
     
-    /// キューに溜まったICE Candidateを処理（remote description設定後に呼び出す）
-    private func drainPendingICECandidates(sessionId: String) async {
+    /// キューに溜まったICE Candidateを処理（remote description設定後に呼び出す）- 同期版
+    private func drainPendingICECandidates(sessionId: String) {
         guard let client = clients[sessionId] else { return }
         
         let pendingCandidates = client.drainPendingCandidates()
@@ -297,10 +348,10 @@ class WebRTCService: NSObject {
         #endif
         
         for candidate in pendingCandidates {
-            do {
-                try await client.peerConnection.add(candidate)
-            } catch {
-                print("WebRTCService: キューからICE Candidate追加エラー: \(error.localizedDescription)")
+            client.peerConnection.add(candidate) { error in
+                if let error = error {
+                    print("WebRTCService: キューからICE Candidate追加エラー: \(error.localizedDescription)")
+                }
             }
         }
     }
@@ -333,6 +384,28 @@ class WebRTCService: NSObject {
             client.delegate = nil
             client.peerConnection.close()
         }
+    }
+    
+    /// ゴーストクライアント（切断/失敗/クローズ状態のまま残っているクライアント、または接続中でタイムアウトしたクライアント）を検出してクローズする。
+    /// カメラ側で定期呼び出ししてリソース漏れを防止する。
+    /// - Returns: クローズしたセッションIDのリスト（呼び出し側でFirestore等のクリーンアップに利用可能）
+    func closeGhostClients() -> [String] {
+        let ghostStates: Set<RTCPeerConnectionState> = [.disconnected, .failed, .closed]
+        let now = Date()
+        let timeoutSeconds: TimeInterval = 30
+        let ghostIds = clients.filter { entry in
+            let state = entry.value.peerConnection.connectionState
+            if ghostStates.contains(state) { return true }
+            // .new/.connecting が30秒以上続いている場合もゴーストとして扱う
+            if state == .new || state == .connecting {
+                return now.timeIntervalSince(entry.value.createdAt) > timeoutSeconds
+            }
+            return false
+        }.map { $0.key }
+        for sessionId in ghostIds {
+            closeSession(sessionId: sessionId)
+        }
+        return ghostIds
     }
     
     /// セッションの接続状態を取得

@@ -81,11 +81,17 @@ class SignalingService {
             ])
     }
     
-    /// セッションを削除
+    /// セッションを削除（iceCandidatesサブコレクションも削除）
     func deleteSession(cameraId: String, sessionId: String) async throws {
-        try await db.collection("cameras").document(cameraId)
+        let sessionRef = db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)
-            .delete()
+        // サブコレクションの全ドキュメントを削除
+        let iceDocs = try await sessionRef.collection("iceCandidates").getDocuments()
+        for doc in iceDocs.documents {
+            try? await doc.reference.delete()
+        }
+        // セッション文書を削除
+        try await sessionRef.delete()
     }
     
     // MARK: - セッション監視

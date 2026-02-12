@@ -118,7 +118,7 @@ sequenceDiagram
 
 **技術仕様**:
 
-- **STUN/TURNサーバー**: Google公開STUN (`stun:stun.l.google.com:19302`) + 有料TURNサービス（Twilio NTS or Cloudflare TURN）のフォールバック
+- **STUNサーバー**: Google公開STUN (`stun:stun.l.google.com:19302`)
 - **再接続ロジック**: 切断検知後、指数バックオフで自動再接続（最大5回、間隔: 1s -> 2s -> 4s -> 8s -> 16s）
 - **映像コーデック**: H.264（ハードウェアエンコード対応のため古い端末でも低負荷）
 - **解像度/FPS戦略**: モニター数に応じて自動調整。1-2台接続時は1080p/30fps、3台以上接続時は720p/30fpsに自動設定
@@ -623,7 +623,7 @@ Phase 2向けだが、設計方針は今から定義しておく:
 
 ## 11. セキュリティ・プライバシー
 
-- **映像データ**: E2E暗号化はWebRTC DTLSにより標準で適用。サーバー経由(TURN)の場合も暗号化維持。
+- **映像データ**: E2E暗号化はWebRTC DTLSにより標準で適用。
 - **Firebaseに保存するデータ**: シグナリング情報（一時的）+ デバイス情報 + ペアリング情報のみ。映像・音声データは一切保存しない。
 - **クラウドクリップ（Phase 4有料機能）**: Firebase Storage (またはCloudflare R2) に暗号化保存。7日後に自動削除。暗号化キーはユーザーのApple IDに紐づく。
 - **App Tracking Transparency**: トラッキングなし。ATTダイアログ不要。
@@ -634,7 +634,7 @@ Phase 2向けだが、設計方針は今から定義しておく:
 ## 12. 非機能要件
 
 - **起動時間**: コールドスタートからライブビュー表示まで3秒以内（ペアリング済みの場合）
-- **映像遅延**: P2P時 500ms以内、TURN経由時 1000ms以内
+- **映像遅延**: P2P時 500ms以内
 - **バッテリー消費**: カメラ側でブラックアウト時、1時間あたりのバッテリー消費を15%以下に抑える
 - **発熱制御**: CPU温度監視API(`ProcessInfo.thermalState`)を使用し、`.serious`以上でフレームレートを5fpsに制限
 - **対応端末**: iOS 15以上 / iPhone 6s以降
@@ -1133,7 +1133,7 @@ MioCamは、古いiPhoneを再利用してベビーモニター/ペットカメ�
 - **ペアリングコード**: カメラとモニターを紐付ける6桁の英数字コード。QRコードに含まれる。
 - **ブラックアウトモード**: カメラ側の画面を真っ黒にして、省エネとプライバシーを確保する機能。
 - **エッジAI**: 端末側で実行されるAI処理。MioCamではVision Frameworkを使用して人間や動物の動きを検知。
-- **STUN/TURN**: WebRTC接続を確立するためのサーバー。STUNはNAT越え、TURNはリレーサーバーとして機能。
+- **STUN**: WebRTC接続を確立するためのサーバー。NAT越えに使用。
 - **SDP**: Session Description Protocol。WebRTC接続の設定情報を含む。
 - **ICE Candidates**: Interactive Connectivity Establishment。WebRTC接続に使用可能なネットワークパス情報。
 

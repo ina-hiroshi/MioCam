@@ -16,6 +16,8 @@ struct LiveView: View {
     @Environment(\.dismiss) private var dismiss
     
     let cameraLink: MonitorLinkModel
+    /// fullScreenCover(item:)ではdismiss()だけでは閉じない場合があるため、親でbindingをnilにするためのコールバック
+    var onDismiss: (() -> Void)?
     
     /// MonitorViewModelのcameraStatusesを参照（observeCamera重複を避け、Firestore read削減）
     private var cameraInfo: CameraModel? {
@@ -125,14 +127,16 @@ struct LiveView: View {
     
     var body: some View {
         ZStack {
-            // 背景
+            // 背景 + オーバーレイ切替用タップエリア
             Color.black
                 .ignoresSafeArea()
+                .onTapGesture { if !isConnecting && !isReconnecting && !connectionTimedOut { toggleOverlay() } }
             
             // 映像表示エリア（EquatableViewで分離）
             EquatableView(content: VideoPlayerView(videoTrack: videoTrack, zoomScale: zoomScale))
                 .gesture(magnificationGesture)
                 .gesture(doubleTapGesture)
+                .onTapGesture { if !isConnecting && !isReconnecting && !connectionTimedOut { toggleOverlay() } }
             
             // 接続中/再接続中オーバーレイ
             if isConnecting || isReconnecting || connectionTimedOut {
@@ -146,10 +150,6 @@ struct LiveView: View {
         }
         .navigationTitle(cameraInfo?.deviceName ?? String(localized: "live_view_title"))
         .navigationBarTitleDisplayMode(.inline)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            toggleOverlay()
-        }
         .task {
             // アイドルタイマーを無効化（画面スリープを防止）
             originalIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
@@ -174,9 +174,6 @@ struct LiveView: View {
             }
             webRTCDelegate = delegate
             webRTCService.delegate = delegate
-            // #region agent log
-            agentLog(location: "LiveView:176", message: "LiveView.task set delegate", data: ["cameraId": String(cameraLink.cameraId.prefix(8))], hypothesisId: "B")
-            // #endregion agent log
             
             // モニター側のAVAudioSession設定
             backgroundAudioService.startForMonitorMode()
@@ -192,13 +189,18 @@ struct LiveView: View {
                 cameraLink: cameraLink,
                 cameraInfo: cameraInfo
             ) {
-                dismiss()
+                onDismiss?() ?? dismiss()
             }
             .environmentObject(authService)
         }
         .alert(String(localized: "connection_error"), isPresented: $showOfflineAlert) {
             Button("OK") {
-                Task { await performCleanup(); dismiss() }
+                Task {
+                    await performCleanup()
+                    await MainActor.run {
+                        onDismiss?() ?? dismiss()
+                    }
+                }
             }
         } message: {
             if let message = offlineMessage {
@@ -217,28 +219,31 @@ struct LiveView: View {
     
     private var connectionOverlay: some View {
         ZStack {
-            // 閉じるボタン（左上に常時表示）
+            // 閉じるボタン（左上、最前面で常にタップ可能）
             VStack {
                 HStack {
                     Button {
-                        Task { await performCleanup(); dismiss() }
+                        Task {
+                            await performCleanup()
+                            await MainActor.run {
+                                onDismiss?() ?? dismiss()
+                            }
+                        }
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
                             .frame(width: 36, height: 36)
-                            .background(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                            )
+                            .background(Circle().fill(.ultraThinMaterial))
                     }
+                    .buttonStyle(.plain)
                     .padding(.leading, 16)
                     .padding(.top, 8)
-                    
                     Spacer()
                 }
                 Spacer()
             }
+            .zIndex(1)
             
             // 接続状態表示（中央）
             VStack(spacing: 16) {
@@ -458,7 +463,12 @@ struct LiveView: View {
                 
                 // 閉じるボタン
                 Button {
-                    Task { await performCleanup(); dismiss() }
+                    Task {
+                        await performCleanup()
+                        await MainActor.run {
+                            onDismiss?() ?? dismiss()
+                        }
+                    }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 16, weight: .bold))
@@ -542,6 +552,13 @@ struct LiveView: View {
             connectedSessionsListener?.remove()
             connectedSessionsListener = nil
             webRTCService.closeSession(sessionId: oldSessionId)
+            // Firestoreのゴーストセッション削除
+            try? await signalingService.updateSessionStatus(
+                cameraId: cameraLink.cameraId, sessionId: oldSessionId, status: .disconnected
+            )
+            try? await signalingService.deleteSession(
+                cameraId: cameraLink.cameraId, sessionId: oldSessionId
+            )
         }
         
         isConnecting = true
@@ -586,9 +603,6 @@ struct LiveView: View {
             // セッションIDを生成（UUID）
             let newSessionId = UUID().uuidString
             sessionId = newSessionId
-            // #region agent log
-            agentLog(location: "LiveView:607", message: "startConnection new sessionId", data: ["sessionId": String(newSessionId.prefix(8)), "cameraId": String(cameraLink.cameraId.prefix(8))], hypothesisId: "B")
-            // #endregion agent log
             
             // 1. WebRTC接続を開始してOfferを生成
             // Offerはdelegate経由で受け取る（handleOfferGenerated）
@@ -779,6 +793,7 @@ struct LiveView: View {
     }
     
     func handleAnswerReceived(_ result: Result<[String: Any]?, Error>, sessionId: String) async {
+        guard !hasCleanedUp else { return }
         // セッションIDが一致しているか確認
         guard sessionId == self.sessionId else {
             #if DEBUG
@@ -839,6 +854,7 @@ struct LiveView: View {
     }
     
     func handleICECandidatesReceived(_ result: Result<[ICECandidateModel], Error>, sessionId: String) async {
+        guard !hasCleanedUp else { return }
         switch result {
         case .success(let candidates):
             let cameraCandidates = candidates.filter { $0.sender == .camera }
@@ -858,13 +874,8 @@ struct LiveView: View {
                     continue
                 }
                 
-                do {
-                    try await webRTCService.addICECandidate(sessionId: sessionId, candidate: iceCandidate)
-                } catch {
-                    if !error.localizedDescription.contains("remote description was null") {
-                        print("ICE Candidate追加エラー: \(error.localizedDescription)")
-                    }
-                }
+                // 同期版addICECandidate（async/awaitデッドロック回避）
+                webRTCService.addICECandidate(sessionId: sessionId, candidate: iceCandidate)
             }
             
         case .failure(let error):
@@ -873,6 +884,7 @@ struct LiveView: View {
     }
     
     func handleSessionUpdate(_ result: Result<[String: Any]?, Error>) async {
+        guard !hasCleanedUp else { return }
         switch result {
         case .success(let sessionData):
             guard let sessionData = sessionData else { return }
@@ -913,23 +925,12 @@ struct LiveView: View {
     }
     
     func handleRemoteVideoTrack(_ track: RTCVideoTrack, incomingSessionId: String) {
-        // #region agent log
-        agentLog(location: "LiveView:994", message: "handleRemoteVideoTrack called", data: [
-            "incomingSessionId": String(incomingSessionId.prefix(8)),
-            "selfSessionId": String((sessionId ?? "nil").prefix(8)),
-            "match": incomingSessionId == (sessionId ?? ""),
-            "isConnectingBefore": isConnecting
-        ], hypothesisId: "A")
-        // #endregion agent log
         #if DEBUG
         print("handleRemoteVideoTrack: リモートビデオトラックを受信しました")
         #endif
         
         // リモートビデオトラックを受信
         videoTrack = track
-        // #region agent log
-        agentLog(location: "LiveView:1009", message: "videoTrack set, isConnecting=false", data: ["trackPtr": "\(ObjectIdentifier(track))"], hypothesisId: "E")
-        // #endregion agent log
         isConnecting = false
         connectionError = nil
         connectionTimedOut = false
@@ -1093,22 +1094,15 @@ struct LiveView: View {
         if let sid = sessionIdToCleanup {
             webRTCService.closeSession(sessionId: sid)
             
-            // Firestoreのセッションを確実に更新・削除（awaitで完了を待つ）
-            do {
-                try await signalingService.updateSessionStatus(
-                    cameraId: cameraLink.cameraId,
-                    sessionId: sid,
-                    status: .disconnected
-                )
-                try await signalingService.deleteSession(cameraId: cameraLink.cameraId, sessionId: sid)
-            } catch {
-                print("セッション削除エラー: \(error.localizedDescription)")
-            }
+            // Firestoreのセッションを確実に更新・削除（個別に try? で実行し、updateStatus 失敗時も deleteSession を確実に実行）
+            try? await signalingService.updateSessionStatus(
+                cameraId: cameraLink.cameraId,
+                sessionId: sid,
+                status: .disconnected
+            )
+            try? await signalingService.deleteSession(cameraId: cameraLink.cameraId, sessionId: sid)
         }
         
-        // #region agent log
-        agentLog(location: "LiveView:1205", message: "performCleanup setting delegate=nil", data: ["sessionId": String((sessionId ?? "nil").prefix(8))], hypothesisId: "B")
-        // #endregion agent log
         webRTCService.delegate = nil
         webRTCDelegate = nil
         
