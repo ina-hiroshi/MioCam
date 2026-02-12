@@ -269,7 +269,15 @@ class WebRTCService: NSObject, @unchecked Sendable {
         // 即座にキューをドレイン（setRemoteDescription直後に実行し、既にキューされた候補を取りこぼさない）
         let immediatePending = client.drainPendingCandidates()
         for c in immediatePending {
-            client.peerConnection.add(c) { _ in }
+            try? await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                client.peerConnection.add(c) { error in
+                    if let error = error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
+                }
+            }
         }
         print("WebRTCService.handleAnswer: Answerを設定しました - \(sessionId)")
         
