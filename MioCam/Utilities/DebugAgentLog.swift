@@ -18,17 +18,19 @@ func videoBugLog(location: String, message: String, data: [String: Any] = [:], h
     ]
     if let h = hypothesisId { payload["hypothesisId"] = h }
     guard let body = try? JSONSerialization.data(withJSONObject: payload),
-          let line = String(data: body, encoding: .utf8) else { return }
+          let line = String(data: body, encoding: .utf8),
+          let logURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
     let logLine = line + "\n"
-    let logURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!.appendingPathComponent("video_debug.log")
-    if FileManager.default.fileExists(atPath: logURL.path) {
-        if let handle = try? FileHandle(forWritingTo: logURL) {
+    let logPath = logURL.appendingPathComponent("video_debug.log")
+    if FileManager.default.fileExists(atPath: logPath.path) {
+        if let handle = try? FileHandle(forWritingTo: logPath),
+           let logData = logLine.data(using: .utf8) {
             handle.seekToEndOfFile()
-            handle.write(logLine.data(using: .utf8)!)
+            handle.write(logData)
             try? handle.close()
         }
     } else {
-        try? logLine.write(to: logURL, atomically: false, encoding: .utf8)
+        try? logLine.write(to: logPath, atomically: false, encoding: .utf8)
     }
     print("[DBG] \(line)")
     #endif

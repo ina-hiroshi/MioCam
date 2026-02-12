@@ -136,7 +136,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     
     /// 新しいモニター接続を処理（カメラ側: SDP Offerを受け取ってAnswerを返す）
     func handleIncomingSession(sessionId: String, offer: RTCSessionDescription, monitorUserId: String? = nil) async throws {
-        let client = createPeerConnection(sessionId: sessionId)
+        let client = try createPeerConnection(sessionId: sessionId)
         
         // monitorUserIdをマッピングに保存
         if let userId = monitorUserId {
@@ -199,7 +199,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     
     /// モニター側から接続を開始（SDP Offerを生成）
     func startConnection(sessionId: String) async throws {
-        let client = createPeerConnection(sessionId: sessionId)
+        let client = try createPeerConnection(sessionId: sessionId)
         
         // モニター側のローカルオーディオトラックを作成（プッシュ・トゥ・トーク用、初期状態は無効）
         if monitorLocalAudioTrack == nil {
@@ -580,7 +580,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     
     // MARK: - Private Methods
     
-    private func createPeerConnection(sessionId: String) -> WebRTCClient {
+    private func createPeerConnection(sessionId: String) throws -> WebRTCClient {
         let config = RTCConfiguration()
         config.iceServers = iceServers
         config.sdpSemantics = .unifiedPlan
@@ -593,7 +593,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
             constraints: constraints,
             delegate: nil
         ) else {
-            fatalError("Failed to create peer connection")
+            throw WebRTCError.peerConnectionCreationFailed
         }
         
         let client = WebRTCClient(sessionId: sessionId, peerConnection: peerConnection)
@@ -667,7 +667,8 @@ enum WebRTCError: LocalizedError {
     case connectionFailed
     case offerCreationFailed
     case answerCreationFailed
-    
+    case peerConnectionCreationFailed
+
     var errorDescription: String? {
         switch self {
         case .sessionNotFound:
@@ -678,6 +679,8 @@ enum WebRTCError: LocalizedError {
             return "Offerの作成に失敗しました"
         case .answerCreationFailed:
             return "Answerの作成に失敗しました"
+        case .peerConnectionCreationFailed:
+            return "接続の初期化に失敗しました"
         }
     }
 }

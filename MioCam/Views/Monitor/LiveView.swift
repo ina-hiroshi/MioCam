@@ -1063,8 +1063,9 @@ struct LiveView: View {
         }
     }
     
+    @MainActor
     private func performCleanup() async {
-        // 二重実行防止
+        // 二重実行防止（MainActor上で排他制御して競合を防ぐ）
         guard !hasCleanedUp else { return }
         hasCleanedUp = true
         

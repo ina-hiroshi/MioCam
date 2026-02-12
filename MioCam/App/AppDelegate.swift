@@ -11,6 +11,7 @@ import FirebaseCore
 import FirebaseMessaging
 import FirebaseCrashlytics
 
+@MainActor
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Firebase初期化（AppDelegateで実施 - MioCamApp.initから移動）
@@ -19,10 +20,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // Crashlytics初期化
         Crashlytics.crashlytics().setCrashlyticsCollectionEnabled(true)
         
-        // 認証サービス初期化（Firebase初期化後に実施）
-        Task { @MainActor in
-            AuthenticationService.shared.setup()
-        }
+        // 認証サービス初期化（Firebase初期化後に実施、同期的に実行してauthStateListenerを確実に設定）
+        AuthenticationService.shared.setup()
         
         // プッシュ通知サービス初期化
         PushNotificationService.shared.initialize()

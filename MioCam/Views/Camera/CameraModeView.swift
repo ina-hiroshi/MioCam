@@ -21,6 +21,7 @@ struct CameraModeView: View {
     @State private var showSettings = false
     @State private var showManualPairing = false
     @State private var shouldDismissToRoleSelection = false
+    @State private var showBlackoutView = false
     
     private let captureService = CameraCaptureService.shared
     
@@ -65,6 +66,7 @@ struct CameraModeView: View {
         }
         .onChange(of: shouldDismissToRoleSelection) { newValue in
             if newValue {
+                showBlackoutView = false
                 dismiss()
             }
         }
@@ -72,6 +74,7 @@ struct CameraModeView: View {
             await setupCamera()
         }
         .onDisappear {
+            viewModel.stopCamera()
             captureService.stopCapture()
         }
         .alert(String(localized: "error"), isPresented: $showError) {
@@ -95,23 +98,7 @@ struct CameraModeView: View {
             Text(String(localized: "camera_access_alert_message"))
         }
         // カメラ登録済みの場合はブラックアウトモードへ遷移（接続数に関係なく）
-        .fullScreenCover(isPresented: .init(
-            get: { hasRegistered && !shouldDismissToRoleSelection },
-            set: { isPresented in
-                // fullScreenCoverが閉じられた時（BlackoutViewから戻った時）
-                if !isPresented {
-                    // カメラが停止されている場合（isOnline=false または shouldDismissToRoleSelection=true）は役割選択画面に戻る
-                    // 接続数が0になってもカメラモードは維持する
-                    if !viewModel.isOnline || shouldDismissToRoleSelection {
-                        // onChangeを確実に呼び出すために、一度falseにリセットしてからtrueに設定
-                        shouldDismissToRoleSelection = false
-                        DispatchQueue.main.async {
-                            shouldDismissToRoleSelection = true
-                        }
-                    }
-                }
-            }
-        )) {
+        .fullScreenCover(isPresented: $showBlackoutView) {
             BlackoutView(viewModel: viewModel) {
                 // カメラ停止時の処理（BlackoutView → CameraModeView）
                 viewModel.stopCamera()
@@ -474,6 +461,7 @@ struct CameraModeView: View {
             await viewModel.registerCamera(ownerUserId: userId)
             if viewModel.errorMessage == nil && viewModel.cameraId != nil {
                 hasRegistered = true
+                showBlackoutView = true
             } else if viewModel.errorMessage != nil {
                 showError = true
             }

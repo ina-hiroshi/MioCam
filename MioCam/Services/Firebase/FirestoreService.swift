@@ -26,7 +26,7 @@ class FirestoreService {
     
     /// 6桁のランダムなペアリングコードを生成（英数字）
     func generatePairingCode() -> String {
-        let characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-        return String((0..<6).map { _ in characters.randomElement()! })
+        let characters = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        return String((0..<6).map { _ in characters[Int.random(in: 0..<characters.count)] })
     }
 }

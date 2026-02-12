@@ -40,11 +40,7 @@ private struct BandwidthMetrics {
 /// カメラ側の状態を管理するViewModel
 @MainActor
 class CameraViewModel: ObservableObject {
-    @Published var cameraId: String? {
-        didSet {
-            nonisolatedCameraId = cameraId
-        }
-    }
+    @Published var cameraId: String?
     @Published var pairingCode: String?
     @Published var deviceName: String = ""
     @Published var isOnline: Bool = false
@@ -56,8 +52,6 @@ class CameraViewModel: ObservableObject {
     
     /// 音声を許可済みのユーザーID（セッション中のみ保持）
     private var audioAllowedUserIds: Set<String> = []
-    
-    nonisolated(unsafe) private var nonisolatedCameraId: String?
     
     /// 処理済みセッションIDを追跡（重複処理防止）
     private var processedSessionIds: Set<String> = []
@@ -858,6 +852,9 @@ class CameraViewModel: ObservableObject {
         iceCandidateListeners.removeAll()
         
         // Firestoreリスナーを停止
+        if let cameraId = cameraId {
+            cameraService.stopObservingCamera(cameraId: cameraId)
+        }
         cameraListener?.remove()
         cameraListener = nil
         sessionListener?.remove()
@@ -884,9 +881,6 @@ class CameraViewModel: ObservableObject {
             NotificationCenter.default.removeObserver(observer)
         }
         
-        if let cameraId = nonisolatedCameraId {
-            cameraService.stopObservingCamera(cameraId: cameraId)
-        }
         signalingService.stopAllObservers()
     }
 }
