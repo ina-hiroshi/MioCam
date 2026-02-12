@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import CoreImage.CIFilterBuiltins
 import AVFoundation
 
 /// カメラモード画面
@@ -301,7 +300,7 @@ struct CameraModeView: View {
                                     Text(String(localized: "pairing_code"))
                                         .font(.system(.caption))
                                         .foregroundColor(.white.opacity(0.7))
-                                    Text(formatPairingCode(pairingCode))
+                                    Text(QRCodeGenerator.formatPairingCode(pairingCode))
                                         .font(.system(.title2, design: .monospaced))
                                         .fontWeight(.bold)
                                         .foregroundColor(.white)
@@ -344,7 +343,7 @@ struct CameraModeView: View {
                                 .foregroundColor(.white.opacity(0.9))
                                 .multilineTextAlignment(.center)
                             
-                            if let qrImage = generateQRCode(cameraId: cameraId, pairingCode: pairingCode) {
+                            if let qrImage = QRCodeGenerator.generateQRCode(cameraId: cameraId, pairingCode: pairingCode) {
                                 Image(uiImage: qrImage)
                                     .interpolation(.none)
                                     .resizable()
@@ -466,44 +465,6 @@ struct CameraModeView: View {
                 showError = true
             }
         }
-    }
-    
-    // MARK: - QRコード生成
-    
-    /// cameraId + pairingCode を JSON → Base64 → QRコード画像に変換
-    private func generateQRCode(cameraId: String, pairingCode: String) -> UIImage? {
-        let payload: [String: String] = [
-            "cameraId": cameraId,
-            "pairingCode": pairingCode
-        ]
-        
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            return nil
-        }
-        
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(jsonString.utf8)
-        filter.correctionLevel = "M"
-        
-        guard let outputImage = filter.outputImage else { return nil }
-        
-        // QRコードを拡大（デフォルトは非常に小さい）
-        let scale = CGAffineTransform(scaleX: 10, y: 10)
-        let scaledImage = outputImage.transformed(by: scale)
-        
-        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
-            return nil
-        }
-        
-        return UIImage(cgImage: cgImage)
-    }
-    
-    // MARK: - ペアリングコードフォーマット
-    
-    private func formatPairingCode(_ code: String) -> String {
-        return code
     }
 }
 

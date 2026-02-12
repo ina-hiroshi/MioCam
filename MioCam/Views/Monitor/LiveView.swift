@@ -350,12 +350,12 @@ struct LiveView: View {
                 // バッテリーバッジ
                 if let battery = cameraInfo?.batteryLevel {
                     HStack(spacing: 4) {
-                        Image(systemName: batteryIcon(level: battery))
+                        Image(systemName: BatteryDisplay.icon(level: battery))
                             .font(.system(size: 12))
                         Text("\(battery)%")
                             .font(.system(.caption, design: .monospaced))
                     }
-                    .foregroundColor(batteryColor(level: battery))
+                    .foregroundColor(BatteryDisplay.color(level: battery, defaultColor: .white))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(
@@ -1128,34 +1128,6 @@ struct LiveView: View {
         
         // アイドルタイマーを元に戻す
         UIApplication.shared.isIdleTimerDisabled = originalIdleTimerDisabled
-    }
-    
-    // MARK: - Battery Display
-    
-    private func batteryIcon(level: Int) -> String {
-        switch level {
-        case 0..<10:
-            return "battery.0"
-        case 10..<25:
-            return "battery.25"
-        case 25..<50:
-            return "battery.50"
-        case 50..<75:
-            return "battery.75"
-        default:
-            return "battery.100"
-        }
-    }
-    
-    private func batteryColor(level: Int) -> Color {
-        switch level {
-        case 0..<10:
-            return .mioError
-        case 10..<20:
-            return .mioWarning
-        default:
-            return .white
-        }
     }
 }
 

@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import CoreImage.CIFilterBuiltins
 
 /// カメラ側設定シート
 struct CameraSettingsSheet: View {
@@ -250,7 +249,7 @@ struct CameraSettingsSheet: View {
                                         .font(.system(.caption))
                                         .foregroundColor(.mioTextSecondary)
                                     
-                                    Text(formatPairingCode(pairingCode))
+                                    Text(QRCodeGenerator.formatPairingCode(pairingCode))
                                         .font(.system(.title2, design: .monospaced))
                                         .fontWeight(.bold)
                                         .foregroundColor(.mioAccent)
@@ -280,7 +279,7 @@ struct CameraSettingsSheet: View {
                             .foregroundColor(.mioTextSecondary)
                             .multilineTextAlignment(.center)
                         
-                        if let qrImage = generateQRCode(cameraId: cameraId, pairingCode: pairingCode) {
+                        if let qrImage = QRCodeGenerator.generateQRCode(cameraId: cameraId, pairingCode: pairingCode) {
                             Image(uiImage: qrImage)
                                 .interpolation(.none)
                                 .resizable()
@@ -320,40 +319,6 @@ struct CameraSettingsSheet: View {
                 }
             }
         }
-    }
-    
-    // MARK: - QRコード生成
-    
-    private func generateQRCode(cameraId: String, pairingCode: String) -> UIImage? {
-        let payload: [String: String] = [
-            "cameraId": cameraId,
-            "pairingCode": pairingCode
-        ]
-        
-        guard let jsonData = try? JSONSerialization.data(withJSONObject: payload),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            return nil
-        }
-        
-        let context = CIContext()
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(jsonString.utf8)
-        filter.correctionLevel = "M"
-        
-        guard let outputImage = filter.outputImage else { return nil }
-        
-        let scale = CGAffineTransform(scaleX: 10, y: 10)
-        let scaledImage = outputImage.transformed(by: scale)
-        
-        guard let cgImage = context.createCGImage(scaledImage, from: scaledImage.extent) else {
-            return nil
-        }
-        
-        return UIImage(cgImage: cgImage)
-    }
-    
-    private func formatPairingCode(_ code: String) -> String {
-        return code
     }
 }
 

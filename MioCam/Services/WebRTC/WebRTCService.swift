@@ -292,22 +292,6 @@ class WebRTCService: NSObject, @unchecked Sendable {
                 #endif
             }
         }
-        
-        // remote description設定後、キューに溜まったICE Candidateを処理（fire-and-forget）
-        let pendingCandidates = client.drainPendingCandidates()
-        #if DEBUG
-        if !pendingCandidates.isEmpty {
-            print("WebRTCService.handleAnswer: キューに溜まったICE候補 \(pendingCandidates.count)件を追加 - \(sessionId)")
-        }
-        #endif
-        
-        for candidate in pendingCandidates {
-            client.peerConnection.add(candidate) { error in
-                if let error = error {
-                    print("WebRTCService.handleAnswer: キューからICE候補追加エラー - \(error.localizedDescription)")
-                }
-            }
-        }
     }
     
     // MARK: - Common

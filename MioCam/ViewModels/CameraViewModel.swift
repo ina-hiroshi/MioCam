@@ -432,17 +432,6 @@ class CameraViewModel: ObservableObject {
     
     // MARK: - Quality Adjustment
     
-    /// モニター数に応じて品質を自動調整（後方互換性のため残す）
-    private func adjustQualityBasedOnMonitorCount() {
-        let is1080p = connectedMonitorCount <= 2
-        let preset: AVCaptureSession.Preset = is1080p ? .hd1920x1080 : .hd1280x720
-        let frameRate: Int32 = 30
-        
-        CameraCaptureService.shared.updateQuality(preset: preset, frameRate: frameRate)
-        // 解像度を優先（デフォルト）
-        WebRTCService.shared.updateVideoEncodingForAllSessions(for1080p: is1080p, preferResolution: true)
-    }
-    
     /// 帯域幅指標を集計
     private func aggregateBandwidthMetrics(from stats: [String: RTCStatisticsReport]) -> BandwidthMetrics {
         var totalAvailableBitrate: Int64 = 0

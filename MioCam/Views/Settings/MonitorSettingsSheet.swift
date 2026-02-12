@@ -61,10 +61,10 @@ struct MonitorSettingsSheet: View {
                                     .foregroundColor(.mioTextSecondary)
                                 Spacer()
                                 HStack(spacing: 4) {
-                                    Image(systemName: batteryIcon(level: batteryLevel))
-                                        .foregroundColor(batteryColor(level: batteryLevel))
+                                    Image(systemName: BatteryDisplay.icon(level: batteryLevel))
+                                        .foregroundColor(BatteryDisplay.color(level: batteryLevel))
                                     Text("\(batteryLevel)%")
-                                        .foregroundColor(batteryColor(level: batteryLevel))
+                                        .foregroundColor(BatteryDisplay.color(level: batteryLevel))
                                 }
                             }
                         }
@@ -133,34 +133,6 @@ struct MonitorSettingsSheet: View {
             await viewModel.unpairCamera(monitorUserId: userId, cameraId: cameraLink.cameraId)
             dismiss()
             onDisconnect()
-        }
-    }
-    
-    // MARK: - Battery Display
-    
-    private func batteryIcon(level: Int) -> String {
-        switch level {
-        case 0..<10:
-            return "battery.0"
-        case 10..<25:
-            return "battery.25"
-        case 25..<50:
-            return "battery.50"
-        case 50..<75:
-            return "battery.75"
-        default:
-            return "battery.100"
-        }
-    }
-    
-    private func batteryColor(level: Int) -> Color {
-        switch level {
-        case 0..<10:
-            return .mioError
-        case 10..<20:
-            return .mioWarning
-        default:
-            return .mioTextPrimary
         }
     }
 }
