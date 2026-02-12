@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,18 +7,35 @@
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #FFF8F0; padding: 40px 20px; }
         .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 20px; box-shadow: 0 4px 15px rgba(255,159,106,0.1); }
-        h1 { color: #FF9F6A; border-bottom: 2px solid #FF9F6A; padding-bottom: 10px; }
+        .header-with-icon { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .app-icon { width: 64px; height: 64px; border-radius: 14px; }
+        h1 { color: #FF9F6A; border-bottom: 2px solid #FF9F6A; padding-bottom: 10px; margin: 0; flex: 1; min-width: 200px; }
         h2 { color: #FF9F6A; margin-top: 30px; }
-        .lang-switch { margin-bottom: 20px; font-weight: bold; }
+        .lang-nav { margin-bottom: 24px; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .lang-nav a { margin-right: 12px; color: #FF9F6A; text-decoration: none; font-weight: 500; }
+        .lang-nav a:hover { text-decoration: underline; }
         hr { border: 0; border-top: 1px solid #eee; margin: 40px 0; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>MioCam Privacy Policy</h1>
-        <p>Last Updated: February 7, 2026</p>
+        <div class="header-with-icon">
+            <img src="assets/AppIcon.png" alt="MioCam" class="app-icon" width="64" height="64" />
+            <div>
+                <h1>MioCam Privacy Policy</h1>
+                <p style="margin: 4px 0 0 0;">Last Updated: February 12, 2026</p>
+            </div>
+        </div>
 
-        <h2>English Section</h2>
+        <nav class="lang-nav">
+            <a href="#en">English</a>
+            <a href="#ja">日本語</a>
+            <a href="#es">Español</a>
+            <a href="#pt">Português</a>
+            <a href="#ko">한국어</a>
+        </nav>
+
+        <h2 id="en">English</h2>
         <p>MioCam ("the App") is committed to protecting your privacy. This policy explains how we handle your data.</p>
         
         <h3>1. Camera and Microphone Access</h3>
@@ -35,7 +52,7 @@
 
         <hr>
 
-        <h2>日本語セクション</h2>
+        <h2 id="ja">日本語</h2>
         <p>MioCam（以下「本アプリ」）は、お客様のプライバシー保護に努めています。本ポリシーでは、データの取り扱いについて説明します。</p>
 
         <h3>1. カメラおよびマイクへのアクセス</h3>
@@ -49,6 +66,57 @@
 
         <h3>4. お問い合わせ</h3>
         <p>プライバシーに関するお問い合わせは、以下のメールアドレスまでご連絡ください：<a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+
+        <hr>
+
+        <h2 id="es">Español</h2>
+        <p>MioCam ("la App") se compromete a proteger su privacidad. Esta política explica cómo manejamos sus datos.</p>
+
+        <h3>1. Acceso a cámara y micrófono</h3>
+        <p>La App utiliza la cámara y el micrófono de su dispositivo para transmitir video y audio en tiempo real con fines de monitoreo. Estos datos se transmiten directamente entre sus dispositivos (P2P) y <b>nunca se almacenan en nuestros servidores.</b></p>
+
+        <h3>2. Sin recopilación de datos</h3>
+        <p>No recopilamos, almacenamos ni compartimos información personal, transmisiones de video o datos de audio. Todas las transmisiones están encriptadas y son privadas.</p>
+
+        <h3>3. Servicios de terceros</h3>
+        <p>La App puede utilizar los servicios estándar de Apple y redes publicitarias de terceros (por ejemplo, AdMob) para mostrar anuncios. Estos servicios pueden recopilar identificadores de dispositivos para proporcionar anuncios relevantes.</p>
+
+        <h3>4. Contacto</h3>
+        <p>Para consultas relacionadas con la privacidad, contáctenos en: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+
+        <hr>
+
+        <h2 id="pt">Português</h2>
+        <p>O MioCam ("o App") está comprometido em proteger sua privacidade. Esta política explica como tratamos seus dados.</p>
+
+        <h3>1. Acesso à câmera e ao microfone</h3>
+        <p>O App utiliza a câmera e o microfone do seu dispositivo para transmitir vídeo e áudio em tempo real para fins de monitoramento. Esses dados são transmitidos diretamente entre seus dispositivos (P2P) e <b>nunca são armazenados em nossos servidores.</b></p>
+
+        <h3>2. Nenhuma coleta de dados</h3>
+        <p>Não coletamos, armazenamos ou compartilhamos informações pessoais, feeds de vídeo ou dados de áudio. Todas as transmissões são criptografadas e privadas.</p>
+
+        <h3>3. Serviços de terceiros</h3>
+        <p>O App pode usar os serviços padrão da Apple e redes de publicidade de terceiros (por exemplo, AdMob) para exibir anúncios. Esses serviços podem coletar identificadores de dispositivos para fornecer anúncios relevantes.</p>
+
+        <h3>4. Contato</h3>
+        <p>Para consultas relacionadas à privacidade, entre em contato conosco em: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+
+        <hr>
+
+        <h2 id="ko">한국어</h2>
+        <p>MioCam("앱")은 귀하의 개인정보 보호에 최선을 다합니다. 본 정책은 당사가 데이터를 어떻게 처리하는지 설명합니다.</p>
+
+        <h3>1. 카메라 및 마이크 액세스</h3>
+        <p>앱은 모니터링 목적으로 실시간 비디오와 오디오를 스트리밍하기 위해 기기의 카메라와 마이크를 사용합니다. 이 데이터는 기기 간(P2P)으로 직접 전송되며 <b>당사 서버에 저장되지 않습니다.</b></p>
+
+        <h3>2. 데이터 수집 없음</h3>
+        <p>당사는 개인 정보, 비디오 피드 또는 오디오 데이터를 수집, 저장 또는 공유하지 않습니다. 모든 전송은 암호화되어 비공개로 유지됩니다.</p>
+
+        <h3>3. 제3자 서비스</h3>
+        <p>앱은 광고를 표시하기 위해 Apple의 표준 서비스 및 제3자 광고 네트워크(예: AdMob)를 사용할 수 있습니다. 이러한 서비스는 관련 광고를 제공하기 위해 기기 식별자를 수집할 수 있습니다.</p>
+
+        <h3>4. 문의</h3>
+        <p>개인정보 관련 문의는 다음 이메일로 연락해 주세요: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
     </div>
 </body>
 </html>
