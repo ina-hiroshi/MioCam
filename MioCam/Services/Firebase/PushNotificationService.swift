@@ -59,7 +59,9 @@ class PushNotificationService: NSObject {
             }
             
             if let token = token {
+                #if DEBUG
                 print("FCM registration token: \(token)")
+                #endif
                 // トークンは後でカメラ登録時にFirestoreに保存される
             }
         }
@@ -92,7 +94,9 @@ extension PushNotificationService: UNUserNotificationCenterDelegate {
 // MARK: - MessagingDelegate
 extension PushNotificationService: MessagingDelegate {
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        #if DEBUG
         print("Firebase registration token: \(String(describing: fcmToken))")
+        #endif
         // トークンが更新された場合の処理
     }
 }

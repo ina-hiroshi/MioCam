@@ -1,5 +1,6 @@
 import {onSchedule} from "firebase-functions/v2/scheduler";
 import {onDocumentCreated} from "firebase-functions/v2/firestore";
+import {onCall, HttpsError} from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 
 admin.initializeApp();
@@ -216,5 +217,70 @@ export const onSessionCreated = onDocumentCreated(
         "onSessionCreated: Error updating old sessions:", error
       );
     }
+  }
+);
+
+/**
+ * ペアリングコードを検証し、monitorLink を作成する Callable Function
+ * クライアントが cameras を直接読めない状態で、サーバー側で pairingCode を検証する
+ */
+export const verifyPairingAndCreateLink = onCall(
+  {region: "asia-northeast1"},
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "認証が必要です");
+    }
+    const {cameraId, pairingCode} = request.data as {
+      cameraId?: string;
+      pairingCode?: string;
+    };
+    if (!cameraId || typeof cameraId !== "string" || !pairingCode ||
+      typeof pairingCode !== "string") {
+      throw new HttpsError(
+        "invalid-argument",
+        "cameraId と pairingCode が必要です"
+      );
+    }
+
+    const cameraRef = db.collection("cameras").doc(cameraId);
+    const cameraSnap = await cameraRef.get();
+    const cameraData = cameraSnap.data();
+    if (!cameraSnap.exists || cameraData?.pairingCode !== pairingCode) {
+      throw new HttpsError(
+        "invalid-argument",
+        "無効なペアリングコードです"
+      );
+    }
+
+    const monitorUserId = request.auth.uid;
+    const linkId = `${monitorUserId}_${cameraId}`;
+
+    // 同一ユーザー・同一カメラの既存アクティブリンクを無効化（重複排除）
+    const existingLinks = await db.collection("monitorLinks")
+      .where("monitorUserId", "==", monitorUserId)
+      .where("isActive", "==", true)
+      .get();
+
+    const docsToDeactivate = existingLinks.docs.filter(
+      (doc) => doc.data().cameraId === cameraId && doc.id !== linkId
+    );
+    if (docsToDeactivate.length > 0) {
+      const deactivateBatch = db.batch();
+      for (const doc of docsToDeactivate) {
+        deactivateBatch.update(doc.ref, {isActive: false});
+      }
+      await deactivateBatch.commit();
+    }
+
+    // monitorLink を作成
+    await db.collection("monitorLinks").doc(linkId).set({
+      monitorUserId,
+      cameraId,
+      cameraDeviceName: cameraData.deviceName ?? "",
+      pairedAt: admin.firestore.FieldValue.serverTimestamp(),
+      isActive: true,
+    }, {merge: true});
+
+    return {deviceName: cameraData.deviceName ?? ""};
   }
 );

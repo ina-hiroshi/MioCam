@@ -118,18 +118,21 @@ class MonitorViewModel: ObservableObject {
     }
     
     /// QRコードからカメラ情報を取得してペアリング
+    /// Cloud Function 経由で pairingCode を検証し、monitorLink を作成
     func pairWithCamera(cameraId: String, pairingCode: String, monitorUserId: String) async throws -> Bool {
-        // カメラの存在確認とpairingCode検証を1回のreadで実施
-        guard let camera = try await monitorLinkService.verifyAndGetCamera(cameraId: cameraId, pairingCode: pairingCode) else {
-            throw NSError(domain: "MonitorViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: "無効なペアリングコードです"])
+        do {
+            try await monitorLinkService.verifyPairingAndCreateLink(
+                cameraId: cameraId,
+                pairingCode: pairingCode,
+                monitorUserId: monitorUserId
+            )
+        } catch {
+            let nsError = error as NSError
+            if nsError.domain == "FunctionsErrorDomain" {
+                throw NSError(domain: "MonitorViewModel", code: -1, userInfo: [NSLocalizedDescriptionKey: nsError.localizedDescription])
+            }
+            throw error
         }
-        
-        // ペアリング記録を作成
-        try await monitorLinkService.createMonitorLink(
-            monitorUserId: monitorUserId,
-            cameraId: cameraId,
-            cameraDeviceName: camera.deviceName
-        )
         
         // ペアリング済みカメラ一覧を再読み込み
         await loadPairedCameras(monitorUserId: monitorUserId)

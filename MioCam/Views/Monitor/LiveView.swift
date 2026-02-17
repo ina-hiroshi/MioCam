@@ -14,6 +14,7 @@ struct LiveView: View {
     @EnvironmentObject var authService: AuthenticationService
     @ObservedObject var viewModel: MonitorViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     
     let cameraLink: MonitorLinkModel
     /// fullScreenCover(item:)ではdismiss()だけでは閉じない場合があるため、親でbindingをnilにするためのコールバック
@@ -56,6 +57,8 @@ struct LiveView: View {
     @State private var userDisplayNameCache: [String: String] = [:]  // ユーザーID -> displayNameのキャッシュ
     @State private var hasCleanedUp = false  // 二重クリーンアップ防止
     @State private var showEndMonitorConfirmation = false
+    @State private var networkChangeReconnectScheduled = false  // ネットワーク変化による再接続の重複防止
+    @State private var videoViewRefreshId = 0  // フォアグラウンド復帰時のビデオ再レンダリング用
     
     private let maxReconnectAttempts = 5
     
@@ -135,6 +138,7 @@ struct LiveView: View {
             
             // 映像表示エリア（EquatableViewで分離）
             EquatableView(content: VideoPlayerView(videoTrack: videoTrack, zoomScale: zoomScale))
+                .id(videoViewRefreshId)
                 .gesture(magnificationGesture)
                 .gesture(doubleTapGesture)
                 .onTapGesture { if !isConnecting && !isReconnecting && !connectionTimedOut { toggleOverlay() } }
@@ -208,6 +212,26 @@ struct LiveView: View {
             if newValue == false && hasEverConnected {
                 offlineMessage = String(localized: "camera_went_offline")
                 showOfflineAlert = true
+            }
+        }
+        .onChange(of: scenePhase) { newPhase in
+            #if DEBUG
+            // DecompressionSessionRemote err=-12903 等の映像デコーダエラーと相関を取るため、
+            // アプリ状態遷移をログ出力（ネットワーク切替・バックグラウンド遷移時の把握用）
+            switch newPhase {
+            case .active:
+                print("VideoDebug: scenePhase → active (フォアグラウンド)")
+            case .inactive:
+                print("VideoDebug: scenePhase → inactive")
+            case .background:
+                print("VideoDebug: scenePhase → background (バックグラウンド)")
+            @unknown default:
+                break
+            }
+            #endif
+            // フォアグラウンド復帰時にビデオビューを再作成（FigApplicationStateMonitor エラー後の表示復旧）
+            if newPhase == .active && videoTrack != nil {
+                videoViewRefreshId += 1
             }
         }
         .alert(String(localized: "end_monitor_title"), isPresented: $showEndMonitorConfirmation) {
@@ -845,7 +869,13 @@ struct LiveView: View {
             isConnecting = false
             #if DEBUG
             print("handleAnswerReceived: Answer受信エラー - \(error.localizedDescription)")
+            if error.localizedDescription.contains("Network connectivity") || error.localizedDescription.contains("Unavailable") {
+                print("VideoDebug: Firestore ネットワーク変化検知 (Answer) - DecompressionSessionRemote エラーとの相関用")
+            }
             #endif
+            if isFirestoreNetworkError(error) && hasEverConnected {
+                scheduleReconnectForNetworkChange()
+            }
         }
     }
     
@@ -876,6 +906,14 @@ struct LiveView: View {
             
         case .failure(let error):
             print("ICE Candidate監視エラー: \(error.localizedDescription)")
+            #if DEBUG
+            if error.localizedDescription.contains("Network connectivity") || error.localizedDescription.contains("Unavailable") {
+                print("VideoDebug: Firestore ネットワーク変化検知 (ICE) - DecompressionSessionRemote エラーとの相関用")
+            }
+            #endif
+            if isFirestoreNetworkError(error) && hasEverConnected {
+                scheduleReconnectForNetworkChange()
+            }
         }
     }
     
@@ -899,6 +937,52 @@ struct LiveView: View {
             
         case .failure(let error):
             print("セッション監視エラー: \(error.localizedDescription)")
+            #if DEBUG
+            if error.localizedDescription.contains("Network connectivity") || error.localizedDescription.contains("Unavailable") {
+                print("VideoDebug: Firestore ネットワーク変化検知 (SessionUpdate) - DecompressionSessionRemote エラーとの相関用")
+            }
+            #endif
+            if isFirestoreNetworkError(error) && hasEverConnected {
+                scheduleReconnectForNetworkChange()
+            }
+        }
+    }
+    
+    /// Firestoreの「Network connectivity changed」等のネットワークエラーかどうか
+    private func isFirestoreNetworkError(_ error: Error) -> Bool {
+        let desc = error.localizedDescription
+        return desc.contains("Network connectivity") || desc.contains("Unavailable")
+    }
+    
+    /// Firestoreネットワーク変化を検知した際の再接続（ICE候補の取りこぼし対策）
+    private func scheduleReconnectForNetworkChange() {
+        guard !networkChangeReconnectScheduled else { return }
+        networkChangeReconnectScheduled = true
+        
+        reconnectTask?.cancel()
+        reconnectTask = Task { @MainActor in
+            print("WebRTC: Firestoreネットワーク変化検知 - 3秒後に再接続を試行")
+            try? await Task.sleep(nanoseconds: 3_000_000_000)
+            networkChangeReconnectScheduled = false
+            reconnectTask = nil
+            
+            guard !Task.isCancelled, !hasCleanedUp else { return }
+            
+            isReconnecting = true
+            reconnectAttempt = 0
+            if let oldSessionId = sessionId {
+                webRTCService.closeSession(sessionId: oldSessionId)
+                Task {
+                    try? await signalingService.updateSessionStatus(
+                        cameraId: cameraLink.cameraId,
+                        sessionId: oldSessionId,
+                        status: .disconnected
+                    )
+                    try? await signalingService.deleteSession(cameraId: cameraLink.cameraId, sessionId: oldSessionId)
+                }
+            }
+            sessionId = UUID().uuidString
+            await startConnection()
         }
     }
     
@@ -921,6 +1005,14 @@ struct LiveView: View {
     }
     
     func handleRemoteVideoTrack(_ track: RTCVideoTrack, incomingSessionId: String) {
+        // セッションIDが一致しているか確認（再接続・複数セッション時の誤表示防止）
+        guard incomingSessionId == sessionId else {
+            #if DEBUG
+            print("handleRemoteVideoTrack: セッションID不一致のためスキップ (expected: \(sessionId ?? "nil"), received: \(incomingSessionId))")
+            #endif
+            return
+        }
+        
         #if DEBUG
         print("handleRemoteVideoTrack: リモートビデオトラックを受信しました")
         #endif
@@ -1072,6 +1164,7 @@ struct LiveView: View {
         connectionTimeoutTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
+        networkChangeReconnectScheduled = false
         
         // マイクを無効化
         if isMicActive {

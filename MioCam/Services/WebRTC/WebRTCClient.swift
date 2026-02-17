@@ -133,23 +133,32 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     /// didAdd stream（Plan B）からトラックを処理
     private func handleRemoteTracksFromStream(_ stream: RTCMediaStream) {
         if let videoTrack = stream.videoTracks.first {
-            remoteVideoTrack = videoTrack
-            notifyRemoteVideoTrack(videoTrack)
+            if remoteVideoTrack !== videoTrack {
+                remoteVideoTrack = videoTrack
+                notifyRemoteVideoTrack(videoTrack)
+            }
         }
         if let audioTrack = stream.audioTracks.first {
-            remoteAudioTrack = audioTrack
-            notifyRemoteAudioTrack(audioTrack)
+            if remoteAudioTrack !== audioTrack {
+                remoteAudioTrack = audioTrack
+                notifyRemoteAudioTrack(audioTrack)
+            }
         }
     }
     
     /// 単一トラックを処理（Unified Plan の didAddReceiver 用）
+    /// 同一トラックの重複通知を防止（didAddReceiver/didStartReceivingOn/didAdd stream で複数回呼ばれる場合に対応）
     private func handleRemoteTrack(_ track: RTCMediaStreamTrack) {
         if let videoTrack = track as? RTCVideoTrack {
-            remoteVideoTrack = videoTrack
-            notifyRemoteVideoTrack(videoTrack)
+            if remoteVideoTrack !== videoTrack {
+                remoteVideoTrack = videoTrack
+                notifyRemoteVideoTrack(videoTrack)
+            }
         } else if let audioTrack = track as? RTCAudioTrack {
-            remoteAudioTrack = audioTrack
-            notifyRemoteAudioTrack(audioTrack)
+            if remoteAudioTrack !== audioTrack {
+                remoteAudioTrack = audioTrack
+                notifyRemoteAudioTrack(audioTrack)
+            }
         }
     }
     

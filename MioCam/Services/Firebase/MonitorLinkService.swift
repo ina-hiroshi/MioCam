@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
+import FirebaseFunctions
 
 /// モニターリンク（ペアリング記録）のFirestore操作サービス
 class MonitorLinkService {
@@ -79,7 +80,19 @@ class MonitorLinkService {
         ])
     }
     
+    /// ペアリングコードを検証し、monitorLink を作成する（Cloud Function 経由）
+    /// セキュリティ強化: クライアントが cameras を直接読めないため、サーバー側で検証
+    func verifyPairingAndCreateLink(cameraId: String, pairingCode: String, monitorUserId: String) async throws {
+        let functions = Functions.functions(region: "asia-northeast1")
+        _ = try await functions.httpsCallable("verifyPairingAndCreateLink").call([
+            "cameraId": cameraId,
+            "pairingCode": pairingCode
+        ])
+        // 成功時は monitorLink が Function 側で作成済み。失敗時は try で HttpsError が throw される
+    }
+
     /// カメラの存在確認とpairingCode検証を行い、検証成功時にCameraModelを返す（Firestore read 1回で済む）
+    /// 注意: Firestore の cameras read 制限後は使用不可。verifyPairingAndCreateLink を使用すること
     func verifyAndGetCamera(cameraId: String, pairingCode: String) async throws -> CameraModel? {
         let cameraDoc = try await db.collection("cameras").document(cameraId).getDocument()
         

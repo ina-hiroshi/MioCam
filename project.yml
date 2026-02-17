@@ -101,6 +101,7 @@ targets:
         products:
           - FirebaseAuth
           - FirebaseFirestore
+          - FirebaseFunctions
           - FirebaseCrashlytics
           - FirebaseMessaging
       - package: WebRTC
