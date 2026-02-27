@@ -88,6 +88,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.itoguchi.MioCam
+        CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
         SWIFT_VERSION: 5.9
         TARGETED_DEVICE_FAMILY: "1,2"
         IPHONEOS_DEPLOYMENT_TARGET: 16.0

@@ -31,6 +31,10 @@ class WebRTCClient: NSObject {
     /// リモートオーディオトラック（モニター側で受信）
     private(set) var remoteAudioTrack: RTCAudioTrack?
     
+    /// 通知済みトラックID（didAddReceiver/didStartReceivingOn/didAdd stream で同一トラックが異なる参照で渡される場合の重複防止）
+    private var notifiedVideoTrackId: String?
+    private var notifiedAudioTrackId: String?
+    
     /// オーディオ送信者（カメラ側で音声のミュート制御に使用）
     private(set) var audioSender: RTCRtpSender?
     
@@ -133,30 +137,34 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     /// didAdd stream（Plan B）からトラックを処理
     private func handleRemoteTracksFromStream(_ stream: RTCMediaStream) {
         if let videoTrack = stream.videoTracks.first {
-            if remoteVideoTrack !== videoTrack {
+            if notifiedVideoTrackId != videoTrack.trackId {
                 remoteVideoTrack = videoTrack
+                notifiedVideoTrackId = videoTrack.trackId
                 notifyRemoteVideoTrack(videoTrack)
             }
         }
         if let audioTrack = stream.audioTracks.first {
-            if remoteAudioTrack !== audioTrack {
+            if notifiedAudioTrackId != audioTrack.trackId {
                 remoteAudioTrack = audioTrack
+                notifiedAudioTrackId = audioTrack.trackId
                 notifyRemoteAudioTrack(audioTrack)
             }
         }
     }
     
     /// 単一トラックを処理（Unified Plan の didAddReceiver 用）
-    /// 同一トラックの重複通知を防止（didAddReceiver/didStartReceivingOn/didAdd stream で複数回呼ばれる場合に対応）
+    /// 同一トラックの重複通知を防止（didAddReceiver/didStartReceivingOn/didAdd stream で異なる参照で渡される場合に対応）
     private func handleRemoteTrack(_ track: RTCMediaStreamTrack) {
         if let videoTrack = track as? RTCVideoTrack {
-            if remoteVideoTrack !== videoTrack {
+            if notifiedVideoTrackId != videoTrack.trackId {
                 remoteVideoTrack = videoTrack
+                notifiedVideoTrackId = videoTrack.trackId
                 notifyRemoteVideoTrack(videoTrack)
             }
         } else if let audioTrack = track as? RTCAudioTrack {
-            if remoteAudioTrack !== audioTrack {
+            if notifiedAudioTrackId != audioTrack.trackId {
                 remoteAudioTrack = audioTrack
+                notifiedAudioTrackId = audioTrack.trackId
                 notifyRemoteAudioTrack(audioTrack)
             }
         }

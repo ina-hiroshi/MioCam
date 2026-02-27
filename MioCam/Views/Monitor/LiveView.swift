@@ -58,7 +58,7 @@ struct LiveView: View {
     @State private var hasCleanedUp = false  // 二重クリーンアップ防止
     @State private var showEndMonitorConfirmation = false
     @State private var networkChangeReconnectScheduled = false  // ネットワーク変化による再接続の重複防止
-    @State private var videoViewRefreshId = 0  // フォアグラウンド復帰時のビデオ再レンダリング用
+    @State private var videoViewRefreshId = 0  // トラック再アタッチ用（ビュー破棄なし）
     
     private let maxReconnectAttempts = 5
     
@@ -115,14 +115,15 @@ struct LiveView: View {
     private struct VideoPlayerView: View, Equatable {
         let videoTrack: RTCVideoTrack?
         let zoomScale: CGFloat
+        let refreshToken: Int
         
         static func == (lhs: Self, rhs: Self) -> Bool {
-            lhs.videoTrack === rhs.videoTrack && lhs.zoomScale == rhs.zoomScale
+            lhs.videoTrack === rhs.videoTrack && lhs.zoomScale == rhs.zoomScale && lhs.refreshToken == rhs.refreshToken
         }
         
         var body: some View {
             if let track = videoTrack {
-                VideoView(videoTrack: track, contentMode: .scaleAspectFit)
+                VideoView(videoTrack: track, contentMode: .scaleAspectFit, refreshToken: refreshToken)
                     .scaleEffect(zoomScale)
                     .ignoresSafeArea()
             }
@@ -136,15 +137,14 @@ struct LiveView: View {
                 .ignoresSafeArea()
                 .onTapGesture { if !isConnecting && !isReconnecting && !connectionTimedOut { toggleOverlay() } }
             
-            // 映像表示エリア（EquatableViewで分離）
-            EquatableView(content: VideoPlayerView(videoTrack: videoTrack, zoomScale: zoomScale))
-                .id(videoViewRefreshId)
+            // 映像表示エリア（EquatableViewで分離、refreshTokenでトラック再アタッチ）
+            EquatableView(content: VideoPlayerView(videoTrack: videoTrack, zoomScale: zoomScale, refreshToken: videoViewRefreshId))
                 .gesture(magnificationGesture)
                 .gesture(doubleTapGesture)
                 .onTapGesture { if !isConnecting && !isReconnecting && !connectionTimedOut { toggleOverlay() } }
             
-            // 接続中/再接続中オーバーレイ
-            if isConnecting || isReconnecting || connectionTimedOut {
+            // 接続中/再接続中オーバーレイ（映像トラック未着の間も表示）
+            if isConnecting || isReconnecting || connectionTimedOut || (hasEverConnected && videoTrack == nil && !connectionTimedOut) {
                 connectionOverlay
             }
             
@@ -229,7 +229,7 @@ struct LiveView: View {
                 break
             }
             #endif
-            // フォアグラウンド復帰時にビデオビューを再作成（FigApplicationStateMonitor エラー後の表示復旧）
+            // フォアグラウンド復帰時にトラックを再アタッチ（FigApplicationStateMonitor エラー後の表示復旧）
             if newPhase == .active && videoTrack != nil {
                 videoViewRefreshId += 1
             }
@@ -1017,8 +1017,9 @@ struct LiveView: View {
         print("handleRemoteVideoTrack: リモートビデオトラックを受信しました")
         #endif
         
-        // リモートビデオトラックを受信
+        // リモートビデオトラックを受信（refreshToken でトラック再アタッチ、ビュー破棄なし）
         videoTrack = track
+        videoViewRefreshId += 1
         isConnecting = false
         connectionError = nil
         connectionTimedOut = false
@@ -1070,7 +1071,7 @@ struct LiveView: View {
         
         switch state {
         case .connected:
-            isConnecting = false
+            // isConnecting は handleRemoteVideoTrack で false にする（映像トラック未着の間はオーバーレイ維持）
             isReconnecting = false
             connectionError = nil
             connectionTimedOut = false

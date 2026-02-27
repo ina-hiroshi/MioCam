@@ -12,6 +12,7 @@ import WebRTC
 struct VideoView: UIViewRepresentable {
     let videoTrack: RTCVideoTrack?
     var contentMode: UIView.ContentMode = .scaleAspectFill
+    var refreshToken: Int = 0
     
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -26,6 +27,7 @@ struct VideoView: UIViewRepresentable {
             track.add(videoView)
             context.coordinator.currentTrack = track
         }
+        context.coordinator.lastRefreshToken = refreshToken
         
         return videoView
     }
@@ -36,18 +38,22 @@ struct VideoView: UIViewRepresentable {
             uiView.videoContentMode = contentMode
         }
         
-        // トラックの変更がある場合のみ更新（重複追加を防止）
-        // 注意: RTCVideoTrackのレンダラーは一度だけ追加する必要がある
-        // updateUIViewは頻繁に呼ばれるため、トラックが変更された場合のみ追加
-        if let track = videoTrack, context.coordinator.currentTrack !== track {
-            // 前回のトラックからレンダラーを削除（可能な場合）
-            if let previousTrack = context.coordinator.currentTrack {
-                previousTrack.remove(uiView)
+        let trackChanged = (videoTrack !== context.coordinator.currentTrack)
+        let refreshTokenChanged = (refreshToken != context.coordinator.lastRefreshToken)
+        context.coordinator.lastRefreshToken = refreshToken
+        
+        // トラックの変更、または refreshToken の変更（再アタッチ要求）の場合に更新
+        if let track = videoTrack {
+            if trackChanged || refreshTokenChanged {
+                // 前回のトラックからレンダラーを削除
+                if let previousTrack = context.coordinator.currentTrack {
+                    previousTrack.remove(uiView)
+                }
+                // 新しいトラックを追加（同じトラックでも再アタッチ）
+                track.add(uiView)
+                context.coordinator.currentTrack = track
             }
-            // 新しいトラックにレンダラーを追加
-            track.add(uiView)
-            context.coordinator.currentTrack = track
-        } else if videoTrack == nil && context.coordinator.currentTrack != nil {
+        } else if context.coordinator.currentTrack != nil {
             // トラックがnilになった場合は前回のトラックからレンダラーを削除
             context.coordinator.currentTrack?.remove(uiView)
             context.coordinator.currentTrack = nil
@@ -55,13 +61,13 @@ struct VideoView: UIViewRepresentable {
     }
     
     static func dismantleUIView(_ uiView: RTCMTLVideoView, coordinator: Coordinator) {
-        // クリーンアップ: レンダラーを削除
         coordinator.currentTrack?.remove(uiView)
         coordinator.currentTrack = nil
     }
     
     class Coordinator {
         var currentTrack: RTCVideoTrack?
+        var lastRefreshToken: Int = 0
     }
 }
 
