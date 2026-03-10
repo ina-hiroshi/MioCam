@@ -2,7 +2,7 @@
 "NSCameraUsageDescription" = "MioCam needs camera access to stream video as a care camera.";
 
 /* Privacy - Microphone */
-"NSMicrophoneUsageDescription" = "MioCam needs microphone access for two-way audio (Phase 3).";
+"NSMicrophoneUsageDescription" = "MioCam needs microphone access to stream ambient audio to monitor devices for baby/pet monitoring.";
 
 /* Privacy - Local Network */
 "NSLocalNetworkUsageDescription" = "MioCam needs local network access for real-time video between camera and monitor.";
