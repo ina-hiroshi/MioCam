@@ -138,3 +138,7 @@
 "disconnect_confirm_message" = "Desconectar desta câmera? Será necessário escanear o QR para reconectar.";
 "unknown" = "Desconhecido";
 "anonymous_user" = "Usuário anônimo";
+
+/* AdMob / UMP */
+"ad_privacy_section_title" = "Anúncios";
+"ad_privacy_options" = "Anúncios e privacidade";

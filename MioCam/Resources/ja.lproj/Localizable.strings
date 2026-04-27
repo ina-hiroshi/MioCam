@@ -138,3 +138,7 @@
 "disconnect_confirm_message" = "このカメラとの接続を解除しますか？再度接続するにはQRコードのスキャンが必要です。";
 "unknown" = "不明";
 "anonymous_user" = "匿名ユーザー";
+
+/* AdMob / UMP */
+"ad_privacy_section_title" = "広告";
+"ad_privacy_options" = "広告とプライバシー";

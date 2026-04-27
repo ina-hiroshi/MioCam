@@ -138,3 +138,7 @@
 "disconnect_confirm_message" = "이 카메라와의 연결을 해제하시겠습니까? 다시 연결하려면 QR 코드를 스캔해야 합니다.";
 "unknown" = "알 수 없음";
 "anonymous_user" = "익명 사용자";
+
+/* AdMob / UMP */
+"ad_privacy_section_title" = "광고";
+"ad_privacy_options" = "광고 및 개인정보";

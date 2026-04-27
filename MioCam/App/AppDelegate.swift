@@ -25,6 +25,9 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         
         // プッシュ通知サービス初期化
         PushNotificationService.shared.initialize()
+
+        // AdMob: UMP 同意 → ATT → Mobile Ads 初期化
+        ConsentService.shared.startConsentAndAdsFlowIfNeeded()
         
         return true
     }

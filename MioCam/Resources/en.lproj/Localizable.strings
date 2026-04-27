@@ -138,3 +138,7 @@
 "disconnect_confirm_message" = "Disconnect from this camera? You will need to scan the QR code again to reconnect.";
 "unknown" = "Unknown";
 "anonymous_user" = "Anonymous User";
+
+/* AdMob / UMP */
+"ad_privacy_section_title" = "Ads";
+"ad_privacy_options" = "Ads & privacy";

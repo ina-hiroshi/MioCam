@@ -10,6 +10,8 @@ import SwiftUI
 /// モニターモード画面
 struct MonitorModeView: View {
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var subscriptionService: SubscriptionService
+    @EnvironmentObject var consentService: ConsentService
     @StateObject private var viewModel = MonitorViewModel()
     @State private var showQRScanner = false
     @State private var pairingError: String?
@@ -66,6 +68,8 @@ struct MonitorModeView: View {
                 selectedCameraLink = nil
             }
             .environmentObject(authService)
+            .environmentObject(subscriptionService)
+            .environmentObject(consentService)
         }
         .alert(String(localized: "pairing_error"), isPresented: $showPairingError) {
             Button("OK") {
@@ -268,5 +272,7 @@ private struct CameraListRow: View {
     NavigationStack {
         MonitorModeView()
             .environmentObject(AuthenticationService.shared)
+            .environmentObject(SubscriptionService.shared)
+            .environmentObject(ConsentService.shared)
     }
 }

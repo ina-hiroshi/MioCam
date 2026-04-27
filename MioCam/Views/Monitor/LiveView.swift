@@ -12,6 +12,8 @@ import FirebaseFirestore
 /// ライブビュー画面
 struct LiveView: View {
     @EnvironmentObject var authService: AuthenticationService
+    @EnvironmentObject var subscriptionService: SubscriptionService
+    @EnvironmentObject var consentService: ConsentService
     @ObservedObject var viewModel: MonitorViewModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -155,6 +157,9 @@ struct LiveView: View {
         }
         .navigationTitle(cameraInfo?.deviceName ?? String(localized: "live_view_title"))
         .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            AdBannerView()
+        }
         .task {
             // アイドルタイマーを無効化（画面スリープを防止）
             originalIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
@@ -1233,4 +1238,6 @@ struct LiveView: View {
     
     LiveView(viewModel: MonitorViewModel(), cameraLink: link)
         .environmentObject(AuthenticationService.shared)
+        .environmentObject(SubscriptionService.shared)
+        .environmentObject(ConsentService.shared)
 }

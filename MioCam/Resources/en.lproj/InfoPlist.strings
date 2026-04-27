@@ -6,3 +6,6 @@
 
 /* Privacy - Local Network */
 "NSLocalNetworkUsageDescription" = "MioCam needs local network access for real-time video between camera and monitor.";
+
+/* Privacy - App Tracking Transparency */
+"NSUserTrackingUsageDescription" = "Used to show you more relevant ads.";

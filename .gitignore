@@ -6,6 +6,8 @@
 # Build
 build/
 DerivedData/
+# プロジェクト直下のカスタム Derived Data（Xcodegen 等で .derivedData に出力する場合）
+.derivedData/
 *.hmap
 *.ipa
 *.dSYM.zip

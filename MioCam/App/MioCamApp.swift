@@ -24,6 +24,7 @@ struct MioCamApp: App {
             ContentView()
                 .environmentObject(authService)
                 .environmentObject(SubscriptionService.shared)
+                .environmentObject(ConsentService.shared)
                 .preferredColorScheme(.light)
         }
     }
@@ -179,6 +180,7 @@ struct RoleSelectionView: View {
                 AppSettingsSheet()
                     .environmentObject(authService)
                     .environmentObject(subscriptionService)
+                    .environmentObject(ConsentService.shared)
             }
             .navigationDestination(for: AppRole.self) { role in
                 switch role {

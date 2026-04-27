@@ -11,6 +11,7 @@ import SwiftUI
 struct AppSettingsSheet: View {
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var subscriptionService: SubscriptionService
+    @EnvironmentObject var consentService: ConsentService
     @Environment(\.dismiss) private var dismiss
 
     @State private var displayNameInput: String = ""
@@ -59,6 +60,16 @@ struct AppSettingsSheet: View {
                         showDeleteAccountConfirmation = true
                     } label: {
                         Text(String(localized: "delete_account"))
+                    }
+                }
+
+                if consentService.isPrivacyOptionsRequired {
+                    Section(header: Text(String(localized: "ad_privacy_section_title"))) {
+                        Button(String(localized: "ad_privacy_options")) {
+                            Task {
+                                try? await consentService.presentPrivacyOptionsForm()
+                            }
+                        }
                     }
                 }
             }
@@ -123,4 +134,5 @@ struct AppSettingsSheet: View {
     AppSettingsSheet()
         .environmentObject(AuthenticationService.shared)
         .environmentObject(SubscriptionService.shared)
+        .environmentObject(ConsentService.shared)
 }
