@@ -142,3 +142,21 @@
 /* AdMob / UMP */
 "ad_privacy_section_title" = "Anúncios";
 "ad_privacy_options" = "Anúncios e privacidade";
+
+/* Onboarding */
+"onboarding_next" = "Next";
+"onboarding_get_started" = "Get started";
+"onboarding_camera_page1_title" = "Start the camera";
+"onboarding_camera_page1_body" = "Allow camera and microphone when prompted. Once you see the preview, this device is ready to stream.";
+"onboarding_camera_page2_title" = "Connect a monitor";
+"onboarding_camera_page2_body" = "Have another device scan the QR code or enter the pairing details manually. After connecting, the screen goes dark to save power while waiting.";
+"onboarding_camera_page3_title" = "Turn audio on";
+"onboarding_camera_page3_body" = "For each connected monitor, open settings (gear) to enable sending microphone audio from this camera. Monitors hear nothing while it stays off.";
+"onboarding_monitor_page1_title" = "Add a camera";
+"onboarding_monitor_page1_body" = "Tap the QR icon in the toolbar and scan the camera's QR code to pair.";
+"onboarding_monitor_page2_title" = "Open live view";
+"onboarding_monitor_page2_body" = "Choose an online camera from the list to connect. It may take a moment before video appears.";
+"onboarding_monitor_page3_title" = "About audio";
+"onboarding_monitor_page3_body" = "When the camera enables audio for you, you'll hear it on the speaker. Use on-screen controls for mute or push-to-talk.";
+"onboarding_show_again" = "Show how-to again";
+"onboarding_show_again_footer" = "Shows the Camera and Monitor how-to screens here, one after the other.";

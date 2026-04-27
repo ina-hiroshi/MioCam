@@ -11,10 +11,13 @@
         .app-icon { width: 64px; height: 64px; border-radius: 14px; }
         h1 { color: #FF9F6A; border-bottom: 2px solid #FF9F6A; padding-bottom: 10px; margin: 0; flex: 1; min-width: 200px; }
         h2 { color: #FF9F6A; margin-top: 30px; }
+        h3 { color: #444; margin-top: 20px; }
         .lang-nav { margin-bottom: 24px; padding: 12px 0; border-bottom: 1px solid #eee; }
         .lang-nav a { margin-right: 12px; color: #FF9F6A; text-decoration: none; font-weight: 500; }
         .lang-nav a:hover { text-decoration: underline; }
+        .updated { color: #666; font-size: 0.95rem; margin: 8px 0 16px 0; }
         hr { border: 0; border-top: 1px solid #eee; margin: 40px 0; }
+        a { color: #FF9F6A; }
     </style>
 </head>
 <body>
@@ -23,7 +26,7 @@
             <img src="assets/AppIcon.png" alt="MioCam" class="app-icon" width="64" height="64" />
             <div>
                 <h1>MioCam Privacy Policy</h1>
-                <p style="margin: 4px 0 0 0;">Last Updated: February 12, 2026</p>
+                <p style="margin: 4px 0 0 0;">Last Updated: April 27, 2026</p>
             </div>
         </div>
 
@@ -36,87 +39,107 @@
         </nav>
 
         <h2 id="en">English</h2>
-        <p>MioCam ("the App") is committed to protecting your privacy. This policy explains how we handle your data.</p>
-        
-        <h3>1. Camera and Microphone Access</h3>
-        <p>The App uses your device's camera and microphone to stream real-time video and audio for monitoring purposes. This data is transmitted directly between your devices (P2P) and is <b>never stored on our servers.</b></p>
+        <p class="updated">Last updated: April 27, 2026</p>
+        <p>MioCam (&quot;the App&quot;) is committed to protecting your privacy. This policy explains how we handle your data.</p>
 
-        <h3>2. No Data Collection</h3>
-        <p>We do not collect, store, or share any personal information, video feeds, or audio data. All transmissions are encrypted and private.</p>
+        <h3>1. Camera and microphone (live monitoring)</h3>
+        <p>The App uses your device&apos;s camera and microphone to stream real-time video and audio for monitoring. This live media is sent directly between your devices (peer-to-peer) using encrypted communication. <b>We do not record, store, or upload your live monitoring video or audio to our own servers for playback or archiving.</b></p>
 
-        <h3>3. Third-Party Services</h3>
-        <p>The App may use Apple's standard services and third-party advertising networks (e.g., AdMob) to display advertisements. These services may collect device identifiers to provide relevant ads.</p>
+        <h3>2. Account and cloud data (Firebase)</h3>
+        <p>The App uses <b>Google Firebase</b> services, including <b>Firebase Authentication</b> (e.g. Sign in with Apple) and <b>Cloud Firestore</b>, to operate pairing, sessions, and related features. Data stored may include your account identifier, display name if you provide one, camera/monitor linkage, connection/session metadata, and similar information needed to run the service. This is separate from live monitoring media in Section 1. For how Google processes data, see <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google&apos;s Privacy Policy</a> and Google&apos;s documentation for Firebase.</p>
 
-        <h3>4. Contact</h3>
-        <p>For privacy-related inquiries, please contact us at: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+        <h3>3. Advertising (Google AdMob)</h3>
+        <p>The App may display <b>banner advertisements</b> (for example on the Monitor live screen), delivered through <b>Google AdMob</b> and the Google Mobile Ads SDK. Advertising partners may use identifiers, usage-related data, approximate location, diagnostics, and similar information for advertising and measurement, as described in Google&apos;s policies. Where required, a <b>consent form</b> (Google User Messaging Platform) may be shown; where applicable, <b>App Tracking Transparency</b> may be requested. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Google&apos;s Privacy Policy</a> and <a href="https://support.google.com/admob/answer/6128543" target="_blank" rel="noopener">Google&apos;s information for partners and users</a>.</p>
+
+        <h3>4. Other third-party services</h3>
+        <p>The App may rely on Apple&apos;s standard platform services (e.g. Sign in with Apple, push notifications) under Apple&apos;s terms and privacy policy.</p>
+
+        <h3>5. Contact</h3>
+        <p>For privacy-related inquiries: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
 
         <hr>
 
         <h2 id="ja">日本語</h2>
+        <p class="updated">最終更新：2026年4月27日</p>
         <p>MioCam（以下「本アプリ」）は、お客様のプライバシー保護に努めています。本ポリシーでは、データの取り扱いについて説明します。</p>
 
-        <h3>1. カメラおよびマイクへのアクセス</h3>
-        <p>本アプリは、見守り機能を提供するためにデバイスのカメラとマイクを使用します。映像および音声データはデバイス間（P2P）で直接転送され、<b>当方のサーバーに保存されることは一切ありません。</b></p>
+        <h3>1. カメラおよびマイク（ライブ見守り）</h3>
+        <p>本アプリは、見守りのためにデバイスのカメラとマイクを用いて、リアルタイムの映像・音声を送受信します。当該ライブの映像・音声は、暗号化された通信によりデバイス間（ピアツーピア）で直接やり取りされます。<b>当社は、見守り用のライブ映像・音声を、再生や保管のために自社サーバーに録画・保存・アップロードすることはありません。</b></p>
 
-        <h3>2. データの収集について</h3>
-        <p>当方は、個人情報、映像データ、音声データを収集、保存、または第三者と共有することはありません。すべての通信は暗号化され、プライベートに保たれます。</p>
+        <h3>2. アカウントおよびクラウド上のデータ（Firebase）</h3>
+        <p>本アプリは、ペアリング・セッション等の機能のために <b>Google Firebase</b>（<b>Firebase Authentication</b>／例：Sign in with Apple、<b>Cloud Firestore</b> 等）を利用します。保存され得るデータには、アカウント識別子、お客様が設定した表示名、カメラ／モニターの紐づけ、接続・セッションに関するメタデータなど、サービス運営に必要な情報が含まれます（第1項のライブ映像・音声とは別です）。Google による取り扱いは、<a href="https://policies.google.com/privacy?hl=ja" target="_blank" rel="noopener">Google のプライバシーポリシー</a> および Firebase に関する Google の説明をご参照ください。</p>
 
-        <h3>3. 第三者サービス</h3>
-        <p>本アプリでは、Appleの標準サービス、および広告配信のために第三者の広告ネットワーク（AdMob等）を利用する場合があります。これらのサービスは、適切な広告を表示するために端末識別子を収集する場合があります。</p>
+        <h3>3. 広告（Google AdMob）</h3>
+        <p>本アプリでは、本アプリ内（例：モニター側のライブ画面）に <b>バナー広告</b> が表示される場合があります。これには <b>Google AdMob</b> および Google Mobile Ads SDK が用いられます。広告配信に関連して、識別子、利用に関連するデータ、おおよその位置情報、診断情報などが、Google のポリシーに従い広告・測定の目的で利用される場合があります。必要な地域では <b>同意フォーム</b>（Google User Messaging Platform）が表示される場合があり、該当する場合は <b>App Tracking Transparency</b> による確認が行われることがあります。<a href="https://policies.google.com/privacy?hl=ja" target="_blank" rel="noopener">Google のプライバシーポリシー</a> および <a href="https://support.google.com/admob/answer/6128543?hl=ja" target="_blank" rel="noopener">Google の案内</a> をご参照ください。</p>
 
-        <h3>4. お問い合わせ</h3>
-        <p>プライバシーに関するお問い合わせは、以下のメールアドレスまでご連絡ください：<a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+        <h3>4. その他の第三者サービス</h3>
+        <p>本アプリは、Sign in with Apple、プッシュ通知など、Apple の標準的なプラットフォーム機能に依存する場合があり、Apple の利用規約およびプライバシーポリシーが適用されます。</p>
+
+        <h3>5. お問い合わせ</h3>
+        <p>プライバシーに関するお問い合わせ：<a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
 
         <hr>
 
         <h2 id="es">Español</h2>
-        <p>MioCam ("la App") se compromete a proteger su privacidad. Esta política explica cómo manejamos sus datos.</p>
+        <p class="updated">Última actualización: 27 de abril de 2026</p>
+        <p>MioCam (&quot;la App&quot;) se compromete a proteger su privacidad. Esta política explica cómo tratamos sus datos.</p>
 
-        <h3>1. Acceso a cámara y micrófono</h3>
-        <p>La App utiliza la cámara y el micrófono de su dispositivo para transmitir video y audio en tiempo real con fines de monitoreo. Estos datos se transmiten directamente entre sus dispositivos (P2P) y <b>nunca se almacenan en nuestros servidores.</b></p>
+        <h3>1. Cámara y micrófono (vigilancia en vivo)</h3>
+        <p>La App utiliza la cámara y el micrófono de su dispositivo para transmitir vídeo y audio en tiempo real con fines de vigilancia. Este contenido en vivo se envía directamente entre sus dispositivos (entre pares) mediante comunicación cifrada. <b>No grabamos, almacenamos ni subimos a nuestros propios servidores el vídeo o el audio en vivo de la vigilancia para su reproducción o archivo.</b></p>
 
-        <h3>2. Sin recopilación de datos</h3>
-        <p>No recopilamos, almacenamos ni compartimos información personal, transmisiones de video o datos de audio. Todas las transmisiones están encriptadas y son privadas.</p>
+        <h3>2. Cuenta y datos en la nube (Firebase)</h3>
+        <p>La App utiliza servicios de <b>Google Firebase</b>, incluida <b>Firebase Authentication</b> (p. ej., Iniciar sesión con Apple) y <b>Cloud Firestore</b>, para emparejamiento, sesiones y funciones relacionadas. Los datos almacenados pueden incluir el identificador de su cuenta, un nombre para mostrar si lo proporciona, vínculos cámara/monitor, metadatos de conexión/sesión e información similar necesaria para el servicio. Esto es independiente del contenido multimedia en vivo de la sección 1. Consulte la <a href="https://policies.google.com/privacy?hl=es" target="_blank" rel="noopener">Política de Privacidad de Google</a> y la documentación de Firebase.</p>
 
-        <h3>3. Servicios de terceros</h3>
-        <p>La App puede utilizar los servicios estándar de Apple y redes publicitarias de terceros (por ejemplo, AdMob) para mostrar anuncios. Estos servicios pueden recopilar identificadores de dispositivos para proporcionar anuncios relevantes.</p>
+        <h3>3. Publicidad (Google AdMob)</h3>
+        <p>La App puede mostrar <b>anuncios en banner</b> (por ejemplo, en la pantalla en vivo del Monitor), servidos mediante <b>Google AdMob</b> y el SDK de anuncios móviles de Google. Los socios publicitarios pueden usar identificadores, datos de uso, ubicación aproximada, diagnósticos e información similar para publicidad y medición, según las políticas de Google. Cuando sea obligatorio, puede mostrarse un <b>formulario de consentimiento</b> (Google User Messaging Platform); cuando corresponda, puede solicitarse <b>Transparencia de seguimiento de aplicaciones (ATT)</b>. Consulte la <a href="https://policies.google.com/privacy?hl=es" target="_blank" rel="noopener">Política de Privacidad de Google</a> y la <a href="https://support.google.com/admob/answer/6128543?hl=es" target="_blank" rel="noopener">información de Google</a>.</p>
 
-        <h3>4. Contacto</h3>
-        <p>Para consultas relacionadas con la privacidad, contáctenos en: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+        <h3>4. Otros servicios de terceros</h3>
+        <p>La App puede depender de los servicios estándar de Apple (p. ej., Iniciar sesión con Apple, notificaciones push) bajo los términos y la política de privacidad de Apple.</p>
+
+        <h3>5. Contacto</h3>
+        <p>Consultas sobre privacidad: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
 
         <hr>
 
         <h2 id="pt">Português</h2>
-        <p>O MioCam ("o App") está comprometido em proteger sua privacidade. Esta política explica como tratamos seus dados.</p>
+        <p class="updated">Última atualização: 27 de abril de 2026</p>
+        <p>O MioCam (&quot;o App&quot;) está comprometido em proteger sua privacidade. Esta política explica como tratamos seus dados.</p>
 
-        <h3>1. Acesso à câmera e ao microfone</h3>
-        <p>O App utiliza a câmera e o microfone do seu dispositivo para transmitir vídeo e áudio em tempo real para fins de monitoramento. Esses dados são transmitidos diretamente entre seus dispositivos (P2P) e <b>nunca são armazenados em nossos servidores.</b></p>
+        <h3>1. Câmera e microfone (monitoramento ao vivo)</h3>
+        <p>O App usa a câmera e o microfone do seu dispositivo para transmitir vídeo e áudio em tempo real para monitoramento. Essa mídia ao vivo é enviada diretamente entre seus dispositivos (peer-to-peer) com comunicação criptografada. <b>Não gravamos, armazenamos nem enviamos para nossos próprios servidores o vídeo ou o áudio ao vivo do monitoramento para reprodução ou arquivo.</b></p>
 
-        <h3>2. Nenhuma coleta de dados</h3>
-        <p>Não coletamos, armazenamos ou compartilhamos informações pessoais, feeds de vídeo ou dados de áudio. Todas as transmissões são criptografadas e privadas.</p>
+        <h3>2. Conta e dados na nuvem (Firebase)</h3>
+        <p>O App usa serviços do <b>Google Firebase</b>, incluindo <b>Firebase Authentication</b> (por exemplo, Sign in with Apple) e <b>Cloud Firestore</b>, para emparelhamento, sessões e recursos relacionados. Os dados armazenados podem incluir o identificador da sua conta, nome de exibição se você fornecer, vínculos câmera/monitor, metadados de conexão/sessão e informações semelhantes necessárias ao serviço. Isso é separado da mídia ao vivo da seção 1. Consulte a <a href="https://policies.google.com/privacy?hl=pt-BR" target="_blank" rel="noopener">Política de Privacidade do Google</a> e a documentação do Firebase.</p>
 
-        <h3>3. Serviços de terceiros</h3>
-        <p>O App pode usar os serviços padrão da Apple e redes de publicidade de terceiros (por exemplo, AdMob) para exibir anúncios. Esses serviços podem coletar identificadores de dispositivos para fornecer anúncios relevantes.</p>
+        <h3>3. Publicidade (Google AdMob)</h3>
+        <p>O App pode exibir <b>anúncios em banner</b> (por exemplo, na tela ao vivo do Monitor), veiculados por <b>Google AdMob</b> e pelo SDK de anúncios para dispositivos móveis do Google. Parceiros de publicidade podem usar identificadores, dados relacionados ao uso, localização aproximada, diagnósticos e informações semelhantes para publicidade e medição, conforme as políticas do Google. Quando exigido, um <b>formulário de consentimento</b> (Google User Messaging Platform) pode ser exibido; quando aplicável, a <b>Transparência no Rastreamento de Apps (ATT)</b> pode ser solicitada. Consulte a <a href="https://policies.google.com/privacy?hl=pt-BR" target="_blank" rel="noopener">Política de Privacidade do Google</a> e as <a href="https://support.google.com/admob/answer/6128543?hl=pt-BR" target="_blank" rel="noopener">informações do Google</a>.</p>
 
-        <h3>4. Contato</h3>
-        <p>Para consultas relacionadas à privacidade, entre em contato conosco em: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+        <h3>4. Outros serviços de terceiros</h3>
+        <p>O App pode depender dos serviços padrão da Apple (por exemplo, Sign in with Apple, notificações push) nos termos e na política de privacidade da Apple.</p>
+
+        <h3>5. Contato</h3>
+        <p>Dúvidas sobre privacidade: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
 
         <hr>
 
         <h2 id="ko">한국어</h2>
-        <p>MioCam("앱")은 귀하의 개인정보 보호에 최선을 다합니다. 본 정책은 당사가 데이터를 어떻게 처리하는지 설명합니다.</p>
+        <p class="updated">최종 업데이트: 2026년 4월 27일</p>
+        <p>MioCam(&quot;앱&quot;)은 귀하의 개인정보 보호를 위해 노력합니다. 본 정책은 데이터 처리 방식을 설명합니다.</p>
 
-        <h3>1. 카메라 및 마이크 액세스</h3>
-        <p>앱은 모니터링 목적으로 실시간 비디오와 오디오를 스트리밍하기 위해 기기의 카메라와 마이크를 사용합니다. 이 데이터는 기기 간(P2P)으로 직접 전송되며 <b>당사 서버에 저장되지 않습니다.</b></p>
+        <h3>1. 카메라 및 마이크(실시간 모니터링)</h3>
+        <p>앱은 모니터링을 위해 기기의 카메라와 마이크를 사용하여 실시간 영상·오디오를 전송합니다. 해당 라이브 미디어는 암호화된 통신을 통해 기기 간(P2P)으로 직접 전송됩니다. <b>당사는 모니터링용 라이브 영상·오디오를 재생 또는 보관 목적으로 자사 서버에 녹화·저장·업로드하지 않습니다.</b></p>
 
-        <h3>2. 데이터 수집 없음</h3>
-        <p>당사는 개인 정보, 비디오 피드 또는 오디오 데이터를 수집, 저장 또는 공유하지 않습니다. 모든 전송은 암호화되어 비공개로 유지됩니다.</p>
+        <h3>2. 계정 및 클라우드 데이터(Firebase)</h3>
+        <p>앱은 페어링, 세션 및 관련 기능을 위해 <b>Google Firebase</b>(<b>Firebase Authentication</b> 예: Apple로 로그인, <b>Cloud Firestore</b> 등)를 사용합니다. 저장될 수 있는 데이터에는 계정 식별자, 제공 시 표시 이름, 카메라/모니터 연결, 연결·세션 메타데이터 등 서비스 운영에 필요한 정보가 포함됩니다(제1항의 라이브 미디어와는 별개입니다). Google의 처리 방식은 <a href="https://policies.google.com/privacy?hl=ko" target="_blank" rel="noopener">Google 개인정보처리방침</a> 및 Firebase 관련 Google 안내를 참고하십시오.</p>
 
-        <h3>3. 제3자 서비스</h3>
-        <p>앱은 광고를 표시하기 위해 Apple의 표준 서비스 및 제3자 광고 네트워크(예: AdMob)를 사용할 수 있습니다. 이러한 서비스는 관련 광고를 제공하기 위해 기기 식별자를 수집할 수 있습니다.</p>
+        <h3>3. 광고(Google AdMob)</h3>
+        <p>앱 내(예: 모니터 라이브 화면)에 <b>배너 광고</b>가 표시될 수 있으며, 이는 <b>Google AdMob</b> 및 Google 모바일 광고 SDK를 통해 제공됩니다. 광고 파트너는 Google 정책에 따라 광고 및 측정을 위해 식별자, 사용 관련 데이터, 대략적인 위치, 진단 정보 등을 사용할 수 있습니다. 필요한 경우 <b>동의 양식</b>(Google User Messaging Platform)이 표시될 수 있으며, 해당 시 <b>앱 추적 투명성(ATT)</b> 요청이 있을 수 있습니다. <a href="https://policies.google.com/privacy?hl=ko" target="_blank" rel="noopener">Google 개인정보처리방침</a> 및 <a href="https://support.google.com/admob/answer/6128543?hl=ko" target="_blank" rel="noopener">Google 안내</a>를 참고하십시오.</p>
 
-        <h3>4. 문의</h3>
-        <p>개인정보 관련 문의는 다음 이메일로 연락해 주세요: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
+        <h3>4. 기타 제3자 서비스</h3>
+        <p>앱은 Apple로 로그인, 푸시 알림 등 Apple의 표준 플랫폼 서비스에 의존할 수 있으며, Apple의 약관 및 개인정보 처리방침이 적용됩니다.</p>
+
+        <h3>5. 문의</h3>
+        <p>개인정보 관련 문의: <a href="mailto:itoguchi.app@gmail.com">itoguchi.app@gmail.com</a></p>
     </div>
 </body>
 </html>

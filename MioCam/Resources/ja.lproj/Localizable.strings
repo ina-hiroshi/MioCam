@@ -142,3 +142,21 @@
 /* AdMob / UMP */
 "ad_privacy_section_title" = "広告";
 "ad_privacy_options" = "広告とプライバシー";
+
+/* Onboarding */
+"onboarding_next" = "次へ";
+"onboarding_get_started" = "始める";
+"onboarding_camera_page1_title" = "カメラを起動する";
+"onboarding_camera_page1_body" = "カメラとマイクの許可を求められたら許可してください。プレビューが表示されたら、この端末は見守りカメラとして準備できています。";
+"onboarding_camera_page2_title" = "モニターと接続する";
+"onboarding_camera_page2_body" = "QRコードを別の端末（モニター）で読み取ってもらうか、手入力でペアリングしてください。接続が完了すると画面はブラックアウトし、省電力で待機します。";
+"onboarding_camera_page3_title" = "音声をオンにする";
+"onboarding_camera_page3_body" = "接続中のモニターごとに、設定（歯車）からカメラ側マイクの送信をオンにできます。オフのままではモニター側に音声は届きません。";
+"onboarding_monitor_page1_title" = "カメラを追加する";
+"onboarding_monitor_page1_body" = "ツールバーのQRアイコンからカメラのQRコードをスキャンし、ペアリングします。";
+"onboarding_monitor_page2_title" = "ライブに入る";
+"onboarding_monitor_page2_body" = "一覧でオンラインのカメラを選ぶとライブ映像に接続します。接続が完了するまで少し待ちます。";
+"onboarding_monitor_page3_title" = "音声について";
+"onboarding_monitor_page3_body" = "カメラ側があなた宛てに音声をオンにすると、スピーカーから聞こえます。画面のコントロールでミュートや通話（プッシュトーク）が使えます。";
+"onboarding_show_again" = "使い方をもう一度見る";
+"onboarding_show_again_footer" = "タップすると、カメラモードとモニターモードの説明がこの場で続けて表示されます。";

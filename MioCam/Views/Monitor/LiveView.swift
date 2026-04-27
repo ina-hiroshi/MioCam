@@ -61,6 +61,7 @@ struct LiveView: View {
     @State private var showEndMonitorConfirmation = false
     @State private var networkChangeReconnectScheduled = false  // ネットワーク変化による再接続の重複防止
     @State private var videoViewRefreshId = 0  // トラック再アタッチ用（ビュー破棄なし）
+    @State private var engagementCountedSessionIds: Set<String> = []
     
     private let maxReconnectAttempts = 5
     
@@ -1038,6 +1039,11 @@ struct LiveView: View {
             print("handleRemoteVideoTrack: 接続済みセッションの監視を開始します")
             #endif
             startObservingConnectedSessions(cameraId: cameraLink.cameraId, currentSessionId: sessionId)
+        }
+        
+        if !engagementCountedSessionIds.contains(incomingSessionId) {
+            engagementCountedSessionIds.insert(incomingSessionId)
+            UserEngagementStore.shared.registerSuccessfulConnectionEvent()
         }
     }
     

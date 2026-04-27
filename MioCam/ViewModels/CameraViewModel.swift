@@ -334,6 +334,7 @@ class CameraViewModel: ObservableObject {
                 isAudioEnabled: isAudioAllowed
             )
             connectedMonitors.append(monitorInfo)
+            UserEngagementStore.shared.registerSuccessfulConnectionEvent()
             
             // デフォルトで音声はOFF（明示的にOFFにする）
             webRTCService.setAudioEnabled(sessionId: sessionId, enabled: false)

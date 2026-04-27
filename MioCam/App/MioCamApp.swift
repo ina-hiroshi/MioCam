@@ -56,6 +56,7 @@ struct ContentView: View {
 struct RoleSelectionView: View {
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var subscriptionService: SubscriptionService
+    @StateObject private var onboardingReplayPresenter = OnboardingReplayPresenter()
     @State private var showAppSettings = false
 
     enum AppRole {
@@ -168,19 +169,28 @@ struct RoleSelectionView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.mioPrimary.ignoresSafeArea())
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItemGroup(placement: .navigationBarTrailing) {
+                    Button {
+                        onboardingReplayPresenter.startReplay()
+                    } label: {
+                        Image(systemName: "questionmark.circle")
+                    }
+                    .accessibilityLabel(String(localized: "onboarding_show_again"))
                     Button {
                         showAppSettings = true
                     } label: {
                         Image(systemName: "gearshape")
                     }
+                    .accessibilityLabel(String(localized: "settings_title"))
                 }
             }
+            .onboardingReplaySheets(presenter: onboardingReplayPresenter)
             .sheet(isPresented: $showAppSettings) {
                 AppSettingsSheet()
                     .environmentObject(authService)
                     .environmentObject(subscriptionService)
                     .environmentObject(ConsentService.shared)
+                    .environmentObject(onboardingReplayPresenter)
             }
             .navigationDestination(for: AppRole.self) { role in
                 switch role {

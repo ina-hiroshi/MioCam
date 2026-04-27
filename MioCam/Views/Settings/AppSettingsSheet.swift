@@ -12,6 +12,7 @@ struct AppSettingsSheet: View {
     @EnvironmentObject var authService: AuthenticationService
     @EnvironmentObject var subscriptionService: SubscriptionService
     @EnvironmentObject var consentService: ConsentService
+    @EnvironmentObject var onboardingReplayPresenter: OnboardingReplayPresenter
     @Environment(\.dismiss) private var dismiss
 
     @State private var displayNameInput: String = ""
@@ -71,6 +72,18 @@ struct AppSettingsSheet: View {
                             }
                         }
                     }
+                }
+
+                Section {
+                    Button(String(localized: "onboarding_show_again")) {
+                        dismiss()
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 400_000_000)
+                            onboardingReplayPresenter.startReplay()
+                        }
+                    }
+                } footer: {
+                    Text(String(localized: "onboarding_show_again_footer"))
                 }
             }
             .navigationTitle(String(localized: "settings_title"))
@@ -135,4 +148,5 @@ struct AppSettingsSheet: View {
         .environmentObject(AuthenticationService.shared)
         .environmentObject(SubscriptionService.shared)
         .environmentObject(ConsentService.shared)
+        .environmentObject(OnboardingReplayPresenter())
 }

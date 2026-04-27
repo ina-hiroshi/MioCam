@@ -18,6 +18,8 @@ struct MonitorModeView: View {
     @State private var showPairingError = false
     @State private var isPairing = false
     @State private var selectedCameraLink: MonitorLinkModel?
+    @State private var allowMonitorMainFlow = UserEngagementStore.shared.hasCompletedMonitorRoleOnboarding
+    @State private var showMonitorOnboarding = false
     
     var body: some View {
         VStack(spacing: 24) {
@@ -46,13 +48,23 @@ struct MonitorModeView: View {
                 }
             }
         }
-        .task {
-            if let userId = authService.currentUser?.uid {
-                viewModel.isLoading = true
-                // 初回読み込み
-                await viewModel.loadPairedCameras(monitorUserId: userId)
-                // リアルタイム監視開始
-                viewModel.startObservingPairedCameras(monitorUserId: userId)
+        .onAppear {
+            if !allowMonitorMainFlow {
+                showMonitorOnboarding = true
+            }
+        }
+        .task(id: allowMonitorMainFlow) {
+            guard allowMonitorMainFlow else { return }
+            guard let userId = authService.currentUser?.uid else { return }
+            viewModel.isLoading = true
+            await viewModel.loadPairedCameras(monitorUserId: userId)
+            viewModel.startObservingPairedCameras(monitorUserId: userId)
+        }
+        .fullScreenCover(isPresented: $showMonitorOnboarding) {
+            RoleOnboardingView(role: .monitor) {
+                UserEngagementStore.shared.markMonitorOnboardingComplete()
+                showMonitorOnboarding = false
+                allowMonitorMainFlow = true
             }
         }
         .onDisappear {

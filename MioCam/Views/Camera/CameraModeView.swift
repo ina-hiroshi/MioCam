@@ -21,6 +21,8 @@ struct CameraModeView: View {
     @State private var showManualPairing = false
     @State private var shouldDismissToRoleSelection = false
     @State private var showBlackoutView = false
+    @State private var allowCameraSetup = UserEngagementStore.shared.hasCompletedCameraRoleOnboarding
+    @State private var showCameraOnboarding = false
     
     private let captureService = CameraCaptureService.shared
     
@@ -69,8 +71,21 @@ struct CameraModeView: View {
                 dismiss()
             }
         }
-        .task {
+        .onAppear {
+            if !allowCameraSetup {
+                showCameraOnboarding = true
+            }
+        }
+        .task(id: allowCameraSetup) {
+            guard allowCameraSetup else { return }
             await setupCamera()
+        }
+        .fullScreenCover(isPresented: $showCameraOnboarding) {
+            RoleOnboardingView(role: .camera) {
+                UserEngagementStore.shared.markCameraOnboardingComplete()
+                showCameraOnboarding = false
+                allowCameraSetup = true
+            }
         }
         .onDisappear {
             viewModel.stopCamera()
