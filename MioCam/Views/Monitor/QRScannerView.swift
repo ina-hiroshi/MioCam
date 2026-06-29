@@ -31,39 +31,40 @@ struct QRScannerView: View {
                 }
                 
                 // オーバーレイ
-                VStack {
-                    Spacer()
-                    
-                    // スキャンエリアガイド
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.mioAccent, lineWidth: 3)
-                        .frame(width: 250, height: 250)
-                        .background(Color.clear)
-                    
-                    Spacer()
-                    
-                    // 説明テキスト
-                    VStack(spacing: 12) {
-                        Text(String(localized: "scan_qr_prompt"))
-                            .font(.system(.body, design: .rounded))
-                            .fontWeight(.medium)
-                            .foregroundColor(.white)
+                GeometryReader { geometry in
+                    let scanSize = min(geometry.size.width, geometry.size.height) * 0.6
+                    VStack {
+                        Spacer()
                         
-                        Button {
-                            showManualEntry = true
-                        } label: {
-                            Text(String(localized: "code_manual_entry"))
-                                .font(.system(.footnote))
-                                .foregroundColor(.mioAccent)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.white.opacity(0.9))
-                                )
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.mioAccent, lineWidth: 3)
+                            .frame(width: scanSize, height: scanSize)
+                            .background(Color.clear)
+                        
+                        Spacer()
+                        
+                        VStack(spacing: 12) {
+                            Text(String(localized: "scan_qr_prompt"))
+                                .font(.system(.body, design: .rounded))
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                            
+                            Button {
+                                showManualEntry = true
+                            } label: {
+                                Text(String(localized: "code_manual_entry"))
+                                    .font(.system(.footnote))
+                                    .foregroundColor(.mioAccent)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.white.opacity(0.9))
+                                    )
+                            }
                         }
+                        .padding(.bottom, 16)
                     }
-                    .padding(.bottom, 48)
                 }
             }
             .navigationTitle(String(localized: "qr_scan_title"))

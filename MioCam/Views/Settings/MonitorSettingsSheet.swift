@@ -16,6 +16,8 @@ struct MonitorSettingsSheet: View {
     
     let cameraLink: MonitorLinkModel
     let cameraInfo: CameraModel?
+    var isCameraAudioEnabled: Bool
+    var onCameraAudioEnabledChange: (Bool) -> Void
     let onDisconnect: () -> Void
     
     @State private var showDisconnectAlert = false
@@ -67,6 +69,21 @@ struct MonitorSettingsSheet: View {
                                         .foregroundColor(BatteryDisplay.color(level: batteryLevel))
                                 }
                             }
+                        }
+                    }
+                }
+                
+                // カメラ音声
+                Section(header: Text(String(localized: "camera_audio"))) {
+                    Toggle(isOn: Binding(
+                        get: { isCameraAudioEnabled },
+                        set: { onCameraAudioEnabledChange($0) }
+                    )) {
+                        HStack {
+                            Image(systemName: isCameraAudioEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill")
+                                .foregroundColor(isCameraAudioEnabled ? .mioAccent : .mioTextSecondary)
+                                .frame(width: 24)
+                            Text(String(localized: "camera_audio_listen"))
                         }
                     }
                 }
@@ -165,7 +182,9 @@ struct MonitorSettingsSheet: View {
     MonitorSettingsSheet(
         viewModel: MonitorViewModel(),
         cameraLink: link,
-        cameraInfo: camera
+        cameraInfo: camera,
+        isCameraAudioEnabled: false,
+        onCameraAudioEnabledChange: { _ in }
     ) {}
         .environmentObject(AuthenticationService.shared)
 }

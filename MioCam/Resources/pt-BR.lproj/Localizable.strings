@@ -21,6 +21,11 @@
 "camera_info_unavailable" = "Info. da câmera indisponível";
 "answer_set_failed" = "Falha ao definir Answer: %@";
 "answer_receive_failed" = "Falha ao receber Answer: %@";
+"enable_camera_audio" = "Turn on camera audio";
+"mute_speaker" = "Mute speaker";
+"unmute_speaker" = "Unmute speaker";
+"camera_audio" = "Camera audio";
+"camera_audio_listen" = "Listen to camera audio";
 
 /* QRScannerView */
 "scan_qr_prompt" = "Escaneie o QR da câmera";
@@ -151,12 +156,12 @@
 "onboarding_camera_page2_title" = "Connect a monitor";
 "onboarding_camera_page2_body" = "Have another device scan the QR code or enter the pairing details manually. After connecting, the screen goes dark to save power while waiting.";
 "onboarding_camera_page3_title" = "Turn audio on";
-"onboarding_camera_page3_body" = "For each connected monitor, open settings (gear) to enable sending microphone audio from this camera. Monitors hear nothing while it stays off.";
+"onboarding_camera_page3_body" = "Enable microphone audio for each connected monitor in settings (gear). Monitors can also turn audio on from their speaker button.";
 "onboarding_monitor_page1_title" = "Add a camera";
 "onboarding_monitor_page1_body" = "Tap the QR icon in the toolbar and scan the camera's QR code to pair.";
 "onboarding_monitor_page2_title" = "Open live view";
 "onboarding_monitor_page2_body" = "Choose an online camera from the list to connect. It may take a moment before video appears.";
 "onboarding_monitor_page3_title" = "About audio";
-"onboarding_monitor_page3_body" = "When the camera enables audio for you, you'll hear it on the speaker. Use on-screen controls for mute or push-to-talk.";
+"onboarding_monitor_page3_body" = "Tap the speaker button on the live screen or use settings to turn on camera audio. Then you can mute or use push-to-talk.";
 "onboarding_show_again" = "Show how-to again";
 "onboarding_show_again_footer" = "Shows the Camera and Monitor how-to screens here, one after the other.";

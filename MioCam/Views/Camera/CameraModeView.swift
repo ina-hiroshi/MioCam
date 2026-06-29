@@ -250,7 +250,6 @@ struct CameraModeView: View {
     
     private var cameraInfoOverlay: some View {
         VStack(spacing: 0) {
-            // 上部グラデーション
             LinearGradient(
                 colors: [Color.black.opacity(0.7), Color.clear],
                 startPoint: .top,
@@ -259,11 +258,21 @@ struct CameraModeView: View {
             .frame(height: 120)
             
             Spacer()
+            qrOverlayCard
+            Spacer()
             
-            // QRコード表示エリア
-            VStack(spacing: 16) {
-                // ステータス表示
-                HStack(spacing: 8) {
+            LinearGradient(
+                colors: [Color.clear, Color.black.opacity(0.7)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 100)
+        }
+    }
+    
+    private var qrOverlayCard: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 8) {
                     Circle()
                         .fill(viewModel.isOnline ? Color.mioSuccess : Color.mioError)
                         .frame(width: 10, height: 10)
@@ -277,9 +286,8 @@ struct CameraModeView: View {
                     Capsule()
                         .fill(Color.black.opacity(0.5))
                 )
-                
-                // QRコードまたは手動ペアリング情報
-                if let cameraId = viewModel.cameraId, let pairingCode = viewModel.pairingCode {
+            
+            if let cameraId = viewModel.cameraId, let pairingCode = viewModel.pairingCode {
                     if showManualPairing {
                         // 手動ペアリング情報表示
                         VStack(spacing: 16) {
@@ -390,38 +398,26 @@ struct CameraModeView: View {
                         }
                     }
                 }
-                
-                // 接続待ちインジケータ
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(Color.mioAccent)
-                        .frame(width: 8, height: 8)
-                        .opacity(0.7)
-                        .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: true)
-                    
-                    Text(String(localized: "waiting_for_monitors"))
-                        .font(.system(.footnote))
-                        .foregroundColor(.white.opacity(0.8))
-                }
-                .padding(.top, 16)
+
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Color.mioAccent)
+                    .frame(width: 8, height: 8)
+                    .opacity(0.7)
+                    .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: true)
+
+                Text(String(localized: "waiting_for_monitors"))
+                    .font(.system(.footnote))
+                    .foregroundColor(.white.opacity(0.8))
             }
-            .padding(24)
-            .background(
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(Color.black.opacity(0.7))
-            )
-            .padding(.horizontal, 24)
-            
-            Spacer()
-            
-            // 下部グラデーション
-            LinearGradient(
-                colors: [Color.clear, Color.black.opacity(0.7)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 100)
+            .padding(.top, 16)
         }
+        .padding(24)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color.black.opacity(0.7))
+        )
+        .padding(.horizontal, 24)
     }
     
     // MARK: - Setup

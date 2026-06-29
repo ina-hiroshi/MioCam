@@ -325,25 +325,24 @@ class CameraViewModel: ObservableObject {
             iceCandidateListeners[sessionId] = listener
             
             // 接続モニター情報を追加
-            let isAudioAllowed = audioAllowedUserIds.contains(session.monitorUserId)
+            let isAudioEnabled = session.isAudioEnabled ?? false
+            if isAudioEnabled {
+                audioAllowedUserIds.insert(session.monitorUserId)
+            }
             let monitorInfo = ConnectedMonitorInfo(
                 id: sessionId,
                 monitorUserId: session.monitorUserId,
                 displayName: displayName,
                 deviceName: session.monitorDeviceName,
-                isAudioEnabled: isAudioAllowed
+                isAudioEnabled: isAudioEnabled
             )
             connectedMonitors.append(monitorInfo)
             UserEngagementStore.shared.registerSuccessfulConnectionEvent()
             
-            // デフォルトで音声はOFF（明示的にOFFにする）
-            webRTCService.setAudioEnabled(sessionId: sessionId, enabled: false)
+            webRTCService.setAudioEnabled(sessionId: sessionId, enabled: isAudioEnabled)
             
-            // 既に許可済みのユーザーの場合は即座に音声を有効化（再接続対応）
-            if isAudioAllowed {
-                webRTCService.setAudioEnabled(sessionId: sessionId, enabled: true)
-                
-                // Firestoreのセッションドキュメントも更新（モニター側に音声ONを通知）
+            // Firestore と WebRTC の状態を揃える（モニター側が先に ON にしていた場合など）
+            if isAudioEnabled {
                 try await signalingService.updateAudioEnabled(
                     cameraId: cameraId,
                     sessionId: sessionId,
@@ -423,6 +422,26 @@ class CameraViewModel: ObservableObject {
                         
                         // 帯域幅監視が品質を自動調整するため、ここでは調整しない
                         // モニター数が変更されたことを帯域幅監視に通知するため、次回の更新を待つ
+                    }
+                    
+                    // モニター側からの音声 ON/OFF を Firestore 経由で反映
+                    for session in sessions {
+                        guard let sessionId = session.id else { continue }
+                        let enabled = session.isAudioEnabled ?? false
+                        guard let index = self?.connectedMonitors.firstIndex(where: { $0.id == sessionId }) else {
+                            continue
+                        }
+                        let userId = self!.connectedMonitors[index].monitorUserId
+                        let previous = self!.connectedMonitors[index].isAudioEnabled
+                        guard previous != enabled else { continue }
+                        
+                        self!.connectedMonitors[index].isAudioEnabled = enabled
+                        if enabled {
+                            self!.audioAllowedUserIds.insert(userId)
+                        } else {
+                            self!.audioAllowedUserIds.remove(userId)
+                        }
+                        self!.webRTCService.setAudioEnabled(sessionId: sessionId, enabled: enabled)
                     }
                 case .failure(let error):
                     print("接続済みセッション監視エラー: \(error.localizedDescription)")
@@ -1016,7 +1035,7 @@ extension CameraViewModel: WebRTCServiceDelegate {
     
     // MARK: - Audio Control
     
-    /// 特定ユーザーの音声を許可/不許可にする
+    /// 特定ユーザーの音声を有効/無効にする（カメラ設定から。Firestore 経由でモニター側にも反映）
     func toggleAudioForUser(userId: String, enabled: Bool) {
         // audioAllowedUserIdsを更新
         if enabled {

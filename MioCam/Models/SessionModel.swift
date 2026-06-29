@@ -18,7 +18,7 @@ struct SessionModel: Codable, Identifiable {
     var offer: [String: Any]? // SDP Offer (RTCSessionDescription)
     var answer: [String: Any]? // SDP Answer (RTCSessionDescription)
     var status: SessionStatus
-    var isAudioEnabled: Bool? // カメラ側からの音声送信が有効かどうか（デフォルト: false）
+    var isAudioEnabled: Bool? // カメラ→モニター方向の音声送信が有効か（カメラ・モニター双方が切り替え可能、デフォルト: false）
     var createdAt: Timestamp
     
     enum SessionStatus: String, Codable {

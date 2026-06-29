@@ -23,13 +23,20 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // 認証サービス初期化（Firebase初期化後に実施、同期的に実行してauthStateListenerを確実に設定）
         AuthenticationService.shared.setup()
         
-        // プッシュ通知サービス初期化
-        PushNotificationService.shared.initialize()
-
-        // AdMob: UMP 同意 → ATT → Mobile Ads 初期化
-        ConsentService.shared.startConsentAndAdsFlowIfNeeded()
+        // プッシュ通知・広告はスクリーンショット撮影時は初期化しない（システムダイアログ回避）
+        if AppStoreScreenshotLaunch.current == nil {
+            PushNotificationService.shared.initialize()
+            ConsentService.shared.startConsentAndAdsFlowIfNeeded()
+        }
         
         return true
+    }
+
+    func application(
+        _ application: UIApplication,
+        supportedInterfaceOrientationsFor window: UIWindow?
+    ) -> UIInterfaceOrientationMask {
+        .portrait
     }
     
     // APNsトークン取得成功時

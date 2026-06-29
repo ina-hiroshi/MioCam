@@ -25,15 +25,50 @@ struct AdBannerView: View {
     }
 }
 
-/// 幅に合わせた高さで GADBannerView を表示（全画面 Live 想定で画面幅を使用）
+/// 縦向き固定アプリ向け: portrait バナーサイズ + ウィンドウ幅
 private struct AdaptiveAdBannerContainer: View {
+    @State private var bannerWidth = AdBannerLayout.portraitContentWidth
+
     var body: some View {
-        let width = UIScreen.main.bounds.width
-        let adSize = currentOrientationAnchoredAdaptiveBanner(width: width)
+        let width = max(bannerWidth, 1)
+        let adSize = portraitAnchoredAdaptiveBanner(width: width)
+
         AdaptiveBannerRepresentable(adWidth: width)
             .frame(height: adSize.size.height)
             .frame(maxWidth: .infinity)
             .background(Color.black)
+            .onAppear {
+                bannerWidth = AdBannerLayout.portraitContentWidth
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIDevice.orientationDidChangeNotification)) { _ in
+                let nextWidth = AdBannerLayout.portraitContentWidth
+                guard abs(nextWidth - bannerWidth) > 0.5 else { return }
+                bannerWidth = nextWidth
+            }
+    }
+}
+
+private enum AdBannerLayout {
+    /// 縦向き UI のコンテンツ幅（safeAreaInset 内の GeometryReader ではなくウィンドウ基準）
+    static var portraitContentWidth: CGFloat {
+        if let scene = activeWindowScene() {
+            let windowWidth = scene.windows.first(where: \.isKeyWindow)?.bounds.width
+                ?? scene.windows.first?.bounds.width
+            if let windowWidth, windowWidth > 0 {
+                return windowWidth
+            }
+            let bounds = scene.screen.bounds
+            return min(bounds.width, bounds.height)
+        }
+        let bounds = UIScreen.main.bounds
+        return min(bounds.width, bounds.height)
+    }
+
+    static func activeWindowScene() -> UIWindowScene? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+            ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
     }
 }
 
@@ -45,7 +80,7 @@ private struct AdaptiveBannerRepresentable: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> BannerView {
-        let size = currentOrientationAnchoredAdaptiveBanner(width: adWidth)
+        let size = portraitAnchoredAdaptiveBanner(width: adWidth)
         let banner = BannerView(adSize: size)
         banner.adUnitID = AdMobConfig.bannerUnitID
         banner.delegate = context.coordinator
@@ -61,7 +96,7 @@ private struct AdaptiveBannerRepresentable: UIViewRepresentable {
     func updateUIView(_ uiView: BannerView, context: Context) {
         guard abs(context.coordinator.lastWidth - adWidth) > 0.5 else { return }
         context.coordinator.lastWidth = adWidth
-        let newSize = currentOrientationAnchoredAdaptiveBanner(width: adWidth)
+        let newSize = portraitAnchoredAdaptiveBanner(width: adWidth)
         uiView.adSize = newSize
         if let root = UIApplication.topViewControllerForAds() {
             uiView.rootViewController = root

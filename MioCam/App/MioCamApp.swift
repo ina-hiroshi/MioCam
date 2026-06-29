@@ -37,16 +37,20 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if authService.isAuthenticated {
+            if let screen = AppStoreScreenshotLaunch.current {
+                AppStoreScreenshotHostView(screen: screen)
+            } else if authService.isAuthenticated {
                 RoleSelectionView()
             } else {
                 SignInWithAppleView()
             }
         }
         .onChange(of: authService.currentUser?.uid) { newUserId in
+            guard AppStoreScreenshotLaunch.current == nil else { return }
             subscriptionService.startObserving(userId: newUserId)
         }
         .task {
+            guard AppStoreScreenshotLaunch.current == nil else { return }
             subscriptionService.startObserving(userId: authService.currentUser?.uid)
         }
     }

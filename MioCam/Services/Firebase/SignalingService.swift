@@ -72,7 +72,7 @@ class SignalingService {
             ])
     }
     
-    /// セッションの音声設定を更新（カメラ側）
+    /// セッションの音声設定を更新（カメラ側・モニター側）
     func updateAudioEnabled(cameraId: String, sessionId: String, enabled: Bool) async throws {
         try await db.collection("cameras").document(cameraId)
             .collection("sessions").document(sessionId)

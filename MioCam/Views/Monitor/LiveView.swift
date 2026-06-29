@@ -198,7 +198,11 @@ struct LiveView: View {
             MonitorSettingsSheet(
                 viewModel: viewModel,
                 cameraLink: cameraLink,
-                cameraInfo: cameraInfo
+                cameraInfo: cameraInfo,
+                isCameraAudioEnabled: lastKnownAudioEnabled,
+                onCameraAudioEnabledChange: { enabled in
+                    Task { await setCameraAudioEnabled(enabled) }
+                }
             ) {
                 onDismiss?() ?? dismiss()
             }
@@ -347,167 +351,191 @@ struct LiveView: View {
     
     private var statusOverlay: some View {
         VStack {
-            // 上部ステータスバー
-            HStack {
-                // 接続状態バッジ（オンライン時のみ、1ユーザー1バッジの列）
-                if cameraInfo?.isOnline == true {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(Color.mioSuccess)
-                                .frame(width: 8, height: 8)
-                                .padding(6)
+            statusBadgesBar
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            Spacer()
+            controlBar
+                .padding(.horizontal, 24)
+                .padding(.bottom, 16)
+        }
+    }
+    
+    private var statusBadgesBar: some View {
+        HStack {
+            if cameraInfo?.isOnline == true {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(Color.mioSuccess)
+                            .frame(width: 8, height: 8)
+                            .padding(6)
+                            .background(
+                                Capsule()
+                                    .fill(.ultraThinMaterial)
+                            )
+                        ForEach(Array(connectedUsers.enumerated()), id: \.offset) { _, name in
+                            Text(name)
+                                .font(.system(.caption))
+                                .fontWeight(.medium)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
                                 .background(
                                     Capsule()
                                         .fill(.ultraThinMaterial)
                                 )
-                            ForEach(Array(connectedUsers.enumerated()), id: \.offset) { _, name in
-                                Text(name)
-                                    .font(.system(.caption))
-                                    .fontWeight(.medium)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        Capsule()
-                                            .fill(.ultraThinMaterial)
-                                    )
-                            }
                         }
                     }
                 }
-                
-                Spacer()
-                
-                // バッテリーバッジ
-                if let battery = cameraInfo?.batteryLevel {
-                    HStack(spacing: 4) {
-                        Image(systemName: BatteryDisplay.icon(level: battery))
-                            .font(.system(size: 12))
-                        Text("\(battery)%")
-                            .font(.system(.caption, design: .monospaced))
-                    }
-                    .foregroundColor(BatteryDisplay.color(level: battery, defaultColor: .white))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(.ultraThinMaterial)
-                    )
-                }
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 60)
             
             Spacer()
             
-            // 下部コントロール
-            HStack {
-                // 設定ボタン
-                Button {
-                    showSettings = true
-                } label: {
-                    Image(systemName: "gearshape.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                        )
+            if let battery = cameraInfo?.batteryLevel {
+                HStack(spacing: 4) {
+                    Image(systemName: BatteryDisplay.icon(level: battery))
+                        .font(.system(size: 12))
+                    Text("\(battery)%")
+                        .font(.system(.caption, design: .monospaced))
                 }
-                
-                Spacer()
-                
-                // スピーカーボタン（音声許可時のみ表示）
-                if isAudioPermitted {
-                    Button {
-                        isSpeakerMuted.toggle()
-                        audioTrack?.isEnabled = !isSpeakerMuted
-                    } label: {
-                        Image(systemName: isSpeakerMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                            )
-                    }
-                    
-                    Spacer()
-                }
-                
-                // プッシュ・トゥ・トークマイクボタン
-                Button {
-                    // ボタンは押下中のみ有効（DragGestureで処理）
-                } label: {
-                    ZStack {
-                        // パルスアニメーション（アクティブ時）
-                        if isMicActive {
-                            Circle()
-                                .stroke(Color.mioAccent.opacity(0.4), lineWidth: 2)
-                                .frame(width: 72, height: 72)
-                                .scaleEffect(isMicActive ? 1.3 : 1.0)
-                                .opacity(isMicActive ? 0 : 1)
-                                .animation(.easeOut(duration: 1.0).repeatForever(autoreverses: false), value: isMicActive)
-                        }
-                        
-                        // 破線リング（非アクティブ時）/ 実線リング（アクティブ時）
-                        Circle()
-                            .stroke(style: isMicActive ? StrokeStyle(lineWidth: 2) : StrokeStyle(lineWidth: 2, dash: [4, 4]))
-                            .frame(width: 60, height: 60)
-                            .foregroundColor(isMicActive ? .mioAccent : .white.opacity(0.5))
-                        
-                        // マイクアイコン
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(isMicActive ? .white : .white.opacity(0.7))
-                            .frame(width: 60, height: 60)
-                            .background(
-                                Group {
-                                    if isMicActive {
-                                        Circle().fill(Color.mioAccent)
-                                    } else {
-                                        Circle().fill(.ultraThinMaterial)
-                                    }
-                                }
-                            )
-                            .scaleEffect(isMicActive ? 1.1 : 1.0)
-                            .animation(.easeInOut(duration: 0.15), value: isMicActive)
-                    }
-                }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { _ in
-                            if !isMicActive {
-                                enableMic()
-                            }
-                        }
-                        .onEnded { _ in
-                            if isMicActive {
-                                disableMic()
-                            }
-                        }
+                .foregroundColor(BatteryDisplay.color(level: battery, defaultColor: .white))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(.ultraThinMaterial)
                 )
-                
-                Spacer()
-                
-                // 閉じるボタン
-                Button {
-                    showEndMonitorConfirmation = true
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
-                        .background(
-                            Circle()
-                                .fill(.ultraThinMaterial)
-                        )
-                }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 48)
+        }
+    }
+    
+    private var controlBar: some View {
+        HStack {
+            settingsButton
+            Spacer()
+            speakerButton
+            Spacer()
+            micButton
+            Spacer()
+            closeButton
+        }
+    }
+    
+    private var settingsButton: some View {
+        Button {
+            showSettings = true
+        } label: {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 20))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                )
+        }
+    }
+    
+    private var speakerButton: some View {
+        Button {
+            if lastKnownAudioEnabled {
+                isSpeakerMuted.toggle()
+                audioTrack?.isEnabled = !isSpeakerMuted
+            } else {
+                Task { await setCameraAudioEnabled(true) }
+            }
+        } label: {
+            Image(systemName: speakerIconName)
+                .font(.system(size: 20))
+                .foregroundColor(lastKnownAudioEnabled ? .white : .white.opacity(0.7))
+                .frame(width: 44, height: 44)
+                .background {
+                    Group {
+                        if lastKnownAudioEnabled {
+                            Circle().fill(.ultraThinMaterial)
+                        } else {
+                            Circle().fill(Color.mioAccent.opacity(0.35))
+                        }
+                    }
+                }
+        }
+        .accessibilityLabel(
+            lastKnownAudioEnabled
+                ? (isSpeakerMuted ? String(localized: "unmute_speaker") : String(localized: "mute_speaker"))
+                : String(localized: "enable_camera_audio")
+        )
+    }
+    
+    private var speakerIconName: String {
+        if !lastKnownAudioEnabled {
+            return "speaker.slash.fill"
+        }
+        return isSpeakerMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"
+    }
+    
+    private var micButton: some View {
+        Button {
+            // ボタンは押下中のみ有効（DragGestureで処理）
+        } label: {
+            ZStack {
+                if isMicActive {
+                    Circle()
+                        .stroke(Color.mioAccent.opacity(0.4), lineWidth: 2)
+                        .frame(width: 72, height: 72)
+                        .scaleEffect(isMicActive ? 1.3 : 1.0)
+                        .opacity(isMicActive ? 0 : 1)
+                        .animation(.easeOut(duration: 1.0).repeatForever(autoreverses: false), value: isMicActive)
+                }
+                
+                Circle()
+                    .stroke(style: isMicActive ? StrokeStyle(lineWidth: 2) : StrokeStyle(lineWidth: 2, dash: [4, 4]))
+                    .frame(width: 60, height: 60)
+                    .foregroundColor(isMicActive ? .mioAccent : .white.opacity(0.5))
+                
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 22))
+                    .foregroundColor(isMicActive ? .white : .white.opacity(0.7))
+                    .frame(width: 60, height: 60)
+                    .background(
+                        Group {
+                            if isMicActive {
+                                Circle().fill(Color.mioAccent)
+                            } else {
+                                Circle().fill(.ultraThinMaterial)
+                            }
+                        }
+                    )
+                    .scaleEffect(isMicActive ? 1.1 : 1.0)
+                    .animation(.easeInOut(duration: 0.15), value: isMicActive)
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    if !isMicActive {
+                        enableMic()
+                    }
+                }
+                .onEnded { _ in
+                    if isMicActive {
+                        disableMic()
+                    }
+                }
+        )
+    }
+    
+    private var closeButton: some View {
+        Button {
+            showEndMonitorConfirmation = true
+        } label: {
+            Image(systemName: "xmark")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                )
         }
     }
     
@@ -933,7 +961,7 @@ struct LiveView: View {
             let isAudioEnabled = sessionData["isAudioEnabled"] as? Bool ?? false
             lastKnownAudioEnabled = isAudioEnabled
             
-            // カメラ側の音声許可状態を更新
+            // カメラ音声の有効状態を更新
             isAudioPermitted = isAudioEnabled
             
             // オーディオトラックが既にあれば設定を適用（なければhandleRemoteAudioTrackで適用）
@@ -1061,6 +1089,27 @@ struct LiveView: View {
     }
     
     // MARK: - Push-to-Talk
+    
+    private func setCameraAudioEnabled(_ enabled: Bool) async {
+        guard let sessionId = sessionId else { return }
+        do {
+            try await signalingService.updateAudioEnabled(
+                cameraId: cameraLink.cameraId,
+                sessionId: sessionId,
+                enabled: enabled
+            )
+            lastKnownAudioEnabled = enabled
+            isAudioPermitted = enabled
+            if enabled {
+                isSpeakerMuted = false
+                audioTrack?.isEnabled = true
+            } else {
+                audioTrack?.isEnabled = false
+            }
+        } catch {
+            print("音声設定の更新に失敗しました: \(error.localizedDescription)")
+        }
+    }
     
     private func enableMic() {
         guard let sessionId = sessionId else { return }

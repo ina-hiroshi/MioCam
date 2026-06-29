@@ -26,16 +26,20 @@ class PushNotificationService: NSObject {
     func initialize() {
         UNUserNotificationCenter.current().delegate = self
         messaging.delegate = self
-        
+
+        guard AppStoreScreenshotLaunch.current == nil else { return }
+
         // 通知許可をリクエスト
         requestNotificationPermission()
-        
+
         // APNsトークンを取得
         getAPNSToken()
     }
     
     /// 通知許可をリクエスト
     private func requestNotificationPermission() {
+        guard AppStoreScreenshotLaunch.current == nil else { return }
+
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
             if let error = error {
                 print("Error requesting notification permission: \(error)")
