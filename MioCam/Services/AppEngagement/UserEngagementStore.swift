@@ -13,8 +13,9 @@ final class UserEngagementStore {
 
     private let defaults: UserDefaults
 
-    /// この回数以上「接続成功」とみなしたあと、レビュー依頼を試みる（変更はこの定数のみ）。
-    let reviewPromptMinSuccessfulConnections = 3
+    /// この接続回数に達するたびにレビュー依頼を試みる。
+    /// Apple は 365 日あたり最大 3 回まで表示を許容するため、複数のマイルストーンを置く。
+    let reviewPromptConnectionMilestones = [3, 10, 25]
 
     private enum Keys {
         static let cameraOnboarding = "mio.userEngagement.cameraOnboardingComplete"
@@ -57,30 +58,37 @@ final class UserEngagementStore {
     }
 
     /// 接続が成立したときに 1 セッションにつき 1 回呼ぶ（呼び出し側で sessionId 単位の重複排除を行う）。
-    func registerSuccessfulConnectionEvent() {
+    ///
+    /// - Parameter allowReviewPrompt: レビュー依頼を出してよい端末なら `true`。
+    ///   カメラ役の端末は別室に置かれ画面も消灯しているため、依頼を出しても誰も見られない。
+    ///   その場合は `false` を渡し、接続回数の記録だけを行う。
+    func registerSuccessfulConnectionEvent(allowReviewPrompt: Bool = true) {
         let newCount = defaults.integer(forKey: Keys.lifetimeConnections) + 1
         defaults.set(newCount, forKey: Keys.lifetimeConnections)
 
-        let threshold = reviewPromptMinSuccessfulConnections
+        guard allowReviewPrompt else { return }
+
         let lastPromptAt = defaults.integer(forKey: Keys.lastReviewPromptConnectionCount)
+        guard let milestone = reviewPromptConnectionMilestones.last(where: { newCount >= $0 }),
+              lastPromptAt < milestone else { return }
 
-        guard newCount >= threshold, lastPromptAt < threshold else { return }
-
-        defaults.set(newCount, forKey: Keys.lastReviewPromptConnectionCount)
-        scheduleReviewRequest()
+        scheduleReviewRequest(markingMilestone: milestone)
     }
 
-    private func scheduleReviewRequest() {
+    private func scheduleReviewRequest(markingMilestone milestone: Int) {
+        let defaults = self.defaults
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 1_500_000_000)
             let scene = UIApplication.shared.connectedScenes
                 .compactMap { $0 as? UIWindowScene }
                 .first { $0.activationState == .foregroundActive }
                 ?? UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+            // 表示できなかった場合はマイルストーンを消費せず、次の接続で再試行する。
             guard let scene else { return }
             SKStoreReviewController.requestReview(in: scene)
+            defaults.set(milestone, forKey: Keys.lastReviewPromptConnectionCount)
             #if DEBUG
-            print("UserEngagementStore: requested review (StoreKit)")
+            print("UserEngagementStore: requested review (StoreKit) at milestone \(milestone)")
             #endif
         }
     }

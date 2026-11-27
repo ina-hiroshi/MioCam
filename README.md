@@ -79,6 +79,26 @@ TsureBen と共用の App Store Connect API キー（`../TsureBen/ios/.appstore.
 
 ビルド番号は `YYYYMMDDHHMM` 形式で自動生成されます（重複アップロード回避）。アップロード後、App Store Connect → MioCam → TestFlight で処理完了を確認してください。
 
+### App Store メタデータ & スクリーンショットの自動アップロード
+
+`appstore/metadata/*.json` と `appstore/marketing/localized/` を App Store Connect API 経由で一括反映します（TestFlight と同じ API キーを使用）。
+
+```bash
+# VERSION ファイルのバージョン (2.0.2) を対象にメタデータ + スクリーンショットを反映
+./scripts/upload-appstore-metadata.sh
+
+# バージョン指定 / 新規バージョン作成 / 部分実行
+./scripts/upload-appstore-metadata.sh --version 2.0.2
+./scripts/upload-appstore-metadata.sh --create-version
+./scripts/upload-appstore-metadata.sh --metadata-only
+./scripts/upload-appstore-metadata.sh --screenshots-only --locale en ja
+./scripts/upload-appstore-metadata.sh --dry-run
+```
+
+**API で反映される項目:** 説明文・キーワード・プロモーションテキスト・新機能・iPhone 6.7" スクリーンショット（5枚×各言語）
+
+**手動が必要な場合:** 新規言語の追加（アプリ情報の言語）やサブタイトルは、配信状態によって App Store Connect UI からの設定が必要です。
+
 別の env ファイルを使う場合:
 
 ```bash

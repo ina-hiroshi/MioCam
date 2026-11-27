@@ -1,0 +1,78 @@
+{
+  "display_type": "APP_IPHONE_69",
+  "size": "1320x2868",
+  "screens": [
+    {
+      "id": "01_qr_code",
+      "screen_id": "qr_code",
+      "file": "01_qr_code.png",
+      "captions": {
+        "en": { "headline": "QR code", "subheadline": "connected" },
+        "ja": { "headline": "QRコード", "subheadline": "ですぐ接続" },
+        "es": { "headline": "Código QR", "subheadline": "conectado" },
+        "pt-BR": { "headline": "QR code", "subheadline": "conectado" },
+        "ko": { "headline": "QR 코드", "subheadline": "바로 연결" }
+      }
+    },
+    {
+      "id": "02_camera_settings",
+      "screen_id": "camera_settings",
+      "file": "02_camera_settings.png",
+      "captions": {
+        "en": { "headline": "Instantly", "subheadline": "Start streaming" },
+        "ja": { "headline": "すぐに", "subheadline": "配信スタート" },
+        "es": { "headline": "Al instante", "subheadline": "Empieza a transmitir" },
+        "pt-BR": { "headline": "Na hora", "subheadline": "Comece a transmitir" },
+        "ko": { "headline": "즉시", "subheadline": "스트리밍 시작" }
+      }
+    },
+    {
+      "id": "03_role_selection",
+      "screen_id": "role_selection",
+      "file": "03_role_selection.png",
+      "captions": {
+        "en": { "headline": "Role", "subheadline": "Camera or monitor" },
+        "ja": { "headline": "役割", "subheadline": "カメラかモニター" },
+        "es": { "headline": "Rol", "subheadline": "Cámara o monitor" },
+        "pt-BR": { "headline": "Função", "subheadline": "Câmera ou monitor" },
+        "ko": { "headline": "역할", "subheadline": "카메라 또는 모니터" }
+      }
+    },
+    {
+      "id": "04_monitor_list",
+      "screen_id": "monitor_list",
+      "file": "04_monitor_list.png",
+      "captions": {
+        "en": { "headline": "Every room", "subheadline": "connected" },
+        "ja": { "headline": "すべての部屋", "subheadline": "つながる" },
+        "es": { "headline": "Cada habitación", "subheadline": "conectada" },
+        "pt-BR": { "headline": "Cada cômodo", "subheadline": "conectado" },
+        "ko": { "headline": "모든 방", "subheadline": "연결" }
+      }
+    },
+    {
+      "id": "05_live_nursery",
+      "screen_id": "live_nursery",
+      "file": "05_live_nursery.png",
+      "captions": {
+        "en": { "headline": "Watch your baby", "subheadline": "live from anywhere" },
+        "ja": { "headline": "赤ちゃんを", "subheadline": "どこからでも見守る" },
+        "es": { "headline": "Mira a tu bebé", "subheadline": "en vivo desde cualquier lugar" },
+        "pt-BR": { "headline": "Veja seu bebê", "subheadline": "ao vivo de qualquer lugar" },
+        "ko": { "headline": "아기를", "subheadline": "어디서든 라이브" }
+      }
+    },
+    {
+      "id": "06_live_livingroom",
+      "screen_id": "live_livingroom",
+      "file": "06_live_livingroom.png",
+      "captions": {
+        "en": { "headline": "Watch your pet", "subheadline": "live from anywhere" },
+        "ja": { "headline": "ペットを", "subheadline": "どこからでも見守る" },
+        "es": { "headline": "Mira a tu mascota", "subheadline": "en vivo desde cualquier lugar" },
+        "pt-BR": { "headline": "Veja seu pet", "subheadline": "ao vivo de qualquer lugar" },
+        "ko": { "headline": "반려동물을", "subheadline": "어디서든 라이브" }
+      }
+    }
+  ]
+}

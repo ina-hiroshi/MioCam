@@ -112,7 +112,7 @@ private struct AdaptiveBannerRepresentable: UIViewRepresentable {
 
 // MARK: - Window / VC 解決
 
-private extension UIApplication {
+extension UIApplication {
     static func topViewControllerForAds() -> UIViewController? {
         guard let scene = shared.connectedScenes.first as? UIWindowScene,
               let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController

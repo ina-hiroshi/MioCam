@@ -78,6 +78,13 @@ struct MonitorModeView: View {
         .fullScreenCover(item: $selectedCameraLink) { link in
             LiveView(viewModel: viewModel, cameraLink: link) {
                 selectedCameraLink = nil
+                // モニター切り替え（ライブ視聴終了）の節目でインタースティシャル広告を検討表示
+                InterstitialAdService.shared.presentIfEligible(
+                    shouldShowAds: subscriptionService.shouldShowAds,
+                    canRequestAds: consentService.canRequestAds,
+                    isMobileAdsReady: consentService.isMobileAdsReady,
+                    from: UIApplication.topViewControllerForAds()
+                )
             }
             .environmentObject(authService)
             .environmentObject(subscriptionService)

@@ -102,6 +102,7 @@ final class ConsentService: ObservableObject {
             Task { @MainActor in
                 self?.syncConsentState()
                 self?.isMobileAdsReady = true
+                InterstitialAdService.shared.preloadIfNeeded()
             }
         }
     }

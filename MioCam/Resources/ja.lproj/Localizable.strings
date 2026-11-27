@@ -162,6 +162,14 @@
 "onboarding_monitor_page2_title" = "ライブに入る";
 "onboarding_monitor_page2_body" = "一覧でオンラインのカメラを選ぶとライブ映像に接続します。接続が完了するまで少し待ちます。";
 "onboarding_monitor_page3_title" = "音声について";
-"onboarding_monitor_page3_body" = "ライブ画面のスピーカーボタン、または設定からカメラ音声をオンにできます。オン後はミュートやプッシュトークも使えます。";
+"onboarding_monitor_page3_body" = "ライブ画面のスピーカーボタン、または設定からカメラ音声をオンにできます。オンにしたあとも、いつでもミュートに戻せます。";
 "onboarding_show_again" = "使い方をもう一度見る";
 "onboarding_show_again_footer" = "タップすると、カメラモードとモニターモードの説明がこの場で続けて表示されます。";
+
+/* AppStoreMock */
+"mock_nursery_camera_name" = "寝室のカメラ";
+"mock_livingroom_camera_name" = "リビングのカメラ";
+"mock_test_camera_name" = "テストカメラ";
+"mock_connected_user" = "パパ";
+"mock_online_updated_recently" = "● オンライン ・ 1秒前更新";
+"mock_online_only" = "● オンライン";

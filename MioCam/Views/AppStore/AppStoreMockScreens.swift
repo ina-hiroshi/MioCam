@@ -10,17 +10,20 @@ import SwiftUI
 // MARK: - 共通
 
 enum AppStoreMockData {
-    static let nurseryCameraName = "寝室のカメラ"
-    static let livingRoomCameraName = "リビングのカメラ"
+    static var nurseryCameraName: String { String(localized: "mock_nursery_camera_name") }
+    static var livingRoomCameraName: String { String(localized: "mock_livingroom_camera_name") }
+    static var testCameraName: String { String(localized: "mock_test_camera_name") }
     static let cameraId = "cam-living-01"
     static let pairingCode = "ABC123"
-    static let connectedUser = "パパ"
+    static var connectedUser: String { String(localized: "mock_connected_user") }
     static let batteryLevel = 100
 
-    static let cameras: [(name: String, online: Bool, monitors: Int)] = [
-        (nurseryCameraName, true, 1),
-        (livingRoomCameraName, true, 0)
-    ]
+    static var cameras: [(name: String, status: String)] {
+        [
+            (nurseryCameraName, String(localized: "mock_online_updated_recently")),
+            (livingRoomCameraName, String(localized: "mock_online_only")),
+        ]
+    }
 }
 
 // MARK: - ライブビュー（モック映像）
@@ -151,21 +154,9 @@ struct AppStoreMockMonitorListView: View {
                                 .foregroundColor(.mioTextPrimary)
 
                             HStack(spacing: 6) {
-                                Circle()
-                                    .fill(Color.mioSuccess)
-                                    .frame(width: 6, height: 6)
-
-                                Text(String(localized: "online"))
+                                Text(camera.status)
                                     .font(.system(.caption))
                                     .foregroundColor(.mioSuccess)
-
-                                if camera.monitors > 0 {
-                                    Text("・")
-                                        .foregroundColor(.mioTextSecondary)
-                                    Text(String(format: String(localized: "cameras_connected_format"), camera.monitors))
-                                        .font(.system(.caption))
-                                        .foregroundColor(.mioTextSecondary)
-                                }
                             }
                         }
 
@@ -200,7 +191,141 @@ struct AppStoreMockMonitorListView: View {
     }
 }
 
-// MARK: - カメラ QR 表示
+// MARK: - QR コード（シート）
+
+struct AppStoreMockQRSheetView: View {
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 24) {
+                Spacer()
+
+                Text(String(localized: "qr_instruction"))
+                    .font(.system(.body))
+                    .foregroundColor(.mioTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+
+                if let qrImage = QRCodeGenerator.generateQRCode(
+                    cameraId: AppStoreMockData.cameraId,
+                    pairingCode: AppStoreMockData.pairingCode
+                ) {
+                    Image(uiImage: qrImage)
+                        .interpolation(.none)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 220, height: 220)
+                        .padding(16)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white)
+                        )
+                        .shadow(color: .black.opacity(0.08), radius: 8, y: 4)
+                }
+
+                Button {} label: {
+                    Text(String(localized: "pairing_alternative"))
+                        .font(.system(.body, design: .rounded))
+                        .fontWeight(.medium)
+                        .foregroundColor(.mioAccent)
+                }
+                .padding(.top, 8)
+
+                Spacer()
+            }
+            .padding()
+            .background(Color.mioPrimary.ignoresSafeArea())
+            .navigationTitle(String(localized: "qr_code_title"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "close")) {}
+                }
+            }
+        }
+    }
+}
+
+// MARK: - カメラ設定
+
+struct AppStoreMockCameraSettingsView: View {
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    mockSettingsRow(icon: "qrcode", title: String(localized: "show_qr_code"))
+                    mockSettingsRow(icon: "arrow.triangle.2.circlepath", title: String(localized: "regenerate_pairing_code"))
+                }
+
+                Section(header: Text(String(localized: "connected_monitors"))) {
+                    HStack {
+                        Image(systemName: "eye.slash")
+                            .foregroundColor(.mioTextSecondary)
+                            .frame(width: 24)
+                        Text(String(localized: "no_connected_monitors"))
+                            .foregroundColor(.mioTextSecondary)
+                    }
+                }
+
+                Section(header: Text(String(localized: "camera_name"))) {
+                    Text(AppStoreMockData.testCameraName)
+                        .foregroundColor(.mioTextPrimary)
+                }
+
+                Section {
+                    Button(role: .destructive) {} label: {
+                        HStack {
+                            Spacer()
+                            Text(String(localized: "stop_camera"))
+                                .fontWeight(.semibold)
+                            Spacer()
+                        }
+                    }
+                }
+
+                Section {
+                    HStack {
+                        Text(String(localized: "account"))
+                            .foregroundColor(.mioTextSecondary)
+                        Spacer()
+                        Text(String(localized: "anonymous_user"))
+                            .foregroundColor(.mioTextSecondary)
+                    }
+
+                    HStack {
+                        Text(String(localized: "version"))
+                            .foregroundColor(.mioTextSecondary)
+                        Spacer()
+                        Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.2")
+                            .foregroundColor(.mioTextSecondary)
+                    }
+                }
+            }
+            .navigationTitle(String(localized: "camera_settings_title"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(String(localized: "done")) {}
+                }
+            }
+        }
+    }
+
+    private func mockSettingsRow(icon: String, title: String) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .foregroundColor(.mioAccent)
+                .frame(width: 24)
+            Text(title)
+                .foregroundColor(.mioTextPrimary)
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.mioTextSecondary)
+        }
+    }
+}
+
+// MARK: - カメラ QR 表示（ライブ映像オーバーレイ）
 
 struct AppStoreMockCameraView: View {
     var feedImageName: String = "AppStoreMockFeedLivingRoom"

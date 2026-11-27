@@ -7,21 +7,23 @@
 
 import SwiftUI
 
-/// 起動引数 `-AppStoreScreenshot <id>` で表示する画面
+/// 起動引数 `-AppStoreScreenshot <id>` で表示する画面（App Store モックアップ順）
 enum AppStoreScreenshot: String, CaseIterable {
+    case qrCode = "qr_code"
+    case cameraSettings = "camera_settings"
+    case roleSelection = "role_selection"
+    case monitorList = "monitor_list"
     case liveNursery = "live_nursery"
     case liveLivingroom = "live_livingroom"
-    case cameraQR = "camera_qr"
-    case monitorList = "monitor_list"
-    case roleSelection = "role_selection"
 
     var outputFilename: String {
         switch self {
-        case .liveNursery: return "01_live_view_nursery.png"
-        case .liveLivingroom: return "02_live_view_livingroom.png"
-        case .cameraQR: return "03_camera_qr.png"
+        case .qrCode: return "01_qr_code.png"
+        case .cameraSettings: return "02_camera_settings.png"
+        case .roleSelection: return "03_role_selection.png"
         case .monitorList: return "04_monitor_list.png"
-        case .roleSelection: return "05_role_selection.png"
+        case .liveNursery: return "05_live_nursery.png"
+        case .liveLivingroom: return "06_live_livingroom.png"
         }
     }
 }
@@ -52,6 +54,18 @@ struct AppStoreScreenshotHostView: View {
     var body: some View {
         Group {
             switch screen {
+            case .qrCode:
+                AppStoreMockQRSheetView()
+            case .cameraSettings:
+                AppStoreMockCameraSettingsView()
+            case .roleSelection:
+                NavigationStack {
+                    AppStoreMockRoleSelectionView()
+                }
+            case .monitorList:
+                NavigationStack {
+                    AppStoreMockMonitorListView()
+                }
             case .liveNursery:
                 AppStoreMockLiveView()
             case .liveLivingroom:
@@ -59,18 +73,6 @@ struct AppStoreScreenshotHostView: View {
                     feedImageName: "AppStoreMockFeedLivingRoom",
                     cameraName: AppStoreMockData.livingRoomCameraName
                 )
-            case .cameraQR:
-                NavigationStack {
-                    AppStoreMockCameraView()
-                }
-            case .monitorList:
-                NavigationStack {
-                    AppStoreMockMonitorListView()
-                }
-            case .roleSelection:
-                NavigationStack {
-                    AppStoreMockRoleSelectionView()
-                }
             }
         }
         .environmentObject(AuthenticationService.shared)

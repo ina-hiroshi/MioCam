@@ -162,6 +162,14 @@
 "onboarding_monitor_page2_title" = "Open live view";
 "onboarding_monitor_page2_body" = "Choose an online camera from the list to connect. It may take a moment before video appears.";
 "onboarding_monitor_page3_title" = "About audio";
-"onboarding_monitor_page3_body" = "Tap the speaker button on the live screen or use settings to turn on camera audio. Then you can mute or use push-to-talk.";
+"onboarding_monitor_page3_body" = "Tap the speaker button on the live screen or use settings to turn on camera audio. You can mute it again at any time.";
 "onboarding_show_again" = "Show how-to again";
 "onboarding_show_again_footer" = "Shows the Camera and Monitor how-to screens here, one after the other.";
+
+/* AppStoreMock */
+"mock_nursery_camera_name" = "Nursery Camera";
+"mock_livingroom_camera_name" = "Living Room Camera";
+"mock_test_camera_name" = "Test Camera";
+"mock_connected_user" = "Dad";
+"mock_online_updated_recently" = "● Online ・ Updated 1s ago";
+"mock_online_only" = "● Online";

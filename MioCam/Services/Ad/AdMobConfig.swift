@@ -15,4 +15,13 @@ enum AdMobConfig {
     #else
     static let bannerUnitID = "ca-app-pub-3113647340712066/2491837202"
     #endif
+
+    /// インタースティシャル広告ユニット ID
+    /// TODO: リリース前に AdMob コンソールで本番用インタースティシャル広告ユニットを作成し、
+    ///       下記の "ca-app-pub-3113647340712066/XXXXXXXXXX" を実際の ID に置き換える。
+    #if DEBUG
+    static let interstitialUnitID = "ca-app-pub-3940256099942544/4411468910"
+    #else
+    static let interstitialUnitID = "ca-app-pub-3113647340712066/XXXXXXXXXX"
+    #endif
 }

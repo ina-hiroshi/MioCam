@@ -1,0 +1,127 @@
+[
+  {
+    "id": "01_live_nursery",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/01_live_nursery_1290x2796.png"
+  },
+  {
+    "id": "02_camera_qr",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/02_camera_qr_1290x2796.png"
+  },
+  {
+    "id": "03_monitor_list",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/03_monitor_list_1290x2796.png"
+  },
+  {
+    "id": "04_live_livingroom",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/04_live_livingroom_1290x2796.png"
+  },
+  {
+    "id": "05_role_selection",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/05_role_selection_1290x2796.png"
+  },
+  {
+    "id": "01_live_nursery",
+    "locale": "en",
+    "output": "appstore/marketing/localized/en/01_live_nursery_1290x2796.png"
+  },
+  {
+    "id": "02_camera_qr",
+    "locale": "en",
+    "output": "appstore/marketing/localized/en/02_camera_qr_1290x2796.png"
+  },
+  {
+    "id": "03_monitor_list",
+    "locale": "en",
+    "output": "appstore/marketing/localized/en/03_monitor_list_1290x2796.png"
+  },
+  {
+    "id": "04_live_livingroom",
+    "locale": "en",
+    "output": "appstore/marketing/localized/en/04_live_livingroom_1290x2796.png"
+  },
+  {
+    "id": "05_role_selection",
+    "locale": "en",
+    "output": "appstore/marketing/localized/en/05_role_selection_1290x2796.png"
+  },
+  {
+    "id": "01_live_nursery",
+    "locale": "es",
+    "output": "appstore/marketing/localized/es/01_live_nursery_1290x2796.png"
+  },
+  {
+    "id": "02_camera_qr",
+    "locale": "es",
+    "output": "appstore/marketing/localized/es/02_camera_qr_1290x2796.png"
+  },
+  {
+    "id": "03_monitor_list",
+    "locale": "es",
+    "output": "appstore/marketing/localized/es/03_monitor_list_1290x2796.png"
+  },
+  {
+    "id": "04_live_livingroom",
+    "locale": "es",
+    "output": "appstore/marketing/localized/es/04_live_livingroom_1290x2796.png"
+  },
+  {
+    "id": "05_role_selection",
+    "locale": "es",
+    "output": "appstore/marketing/localized/es/05_role_selection_1290x2796.png"
+  },
+  {
+    "id": "01_live_nursery",
+    "locale": "pt-BR",
+    "output": "appstore/marketing/localized/pt-BR/01_live_nursery_1290x2796.png"
+  },
+  {
+    "id": "02_camera_qr",
+    "locale": "pt-BR",
+    "output": "appstore/marketing/localized/pt-BR/02_camera_qr_1290x2796.png"
+  },
+  {
+    "id": "03_monitor_list",
+    "locale": "pt-BR",
+    "output": "appstore/marketing/localized/pt-BR/03_monitor_list_1290x2796.png"
+  },
+  {
+    "id": "04_live_livingroom",
+    "locale": "pt-BR",
+    "output": "appstore/marketing/localized/pt-BR/04_live_livingroom_1290x2796.png"
+  },
+  {
+    "id": "05_role_selection",
+    "locale": "pt-BR",
+    "output": "appstore/marketing/localized/pt-BR/05_role_selection_1290x2796.png"
+  },
+  {
+    "id": "01_live_nursery",
+    "locale": "ko",
+    "output": "appstore/marketing/localized/ko/01_live_nursery_1290x2796.png"
+  },
+  {
+    "id": "02_camera_qr",
+    "locale": "ko",
+    "output": "appstore/marketing/localized/ko/02_camera_qr_1290x2796.png"
+  },
+  {
+    "id": "03_monitor_list",
+    "locale": "ko",
+    "output": "appstore/marketing/localized/ko/03_monitor_list_1290x2796.png"
+  },
+  {
+    "id": "04_live_livingroom",
+    "locale": "ko",
+    "output": "appstore/marketing/localized/ko/04_live_livingroom_1290x2796.png"
+  },
+  {
+    "id": "05_role_selection",
+    "locale": "ko",
+    "output": "appstore/marketing/localized/ko/05_role_selection_1290x2796.png"
+  }
+]

@@ -337,7 +337,8 @@ class CameraViewModel: ObservableObject {
                 isAudioEnabled: isAudioEnabled
             )
             connectedMonitors.append(monitorInfo)
-            UserEngagementStore.shared.registerSuccessfulConnectionEvent()
+            // カメラ役の端末は別室に置かれ画面も消灯しているため、レビュー依頼は出さず記録のみ行う。
+            UserEngagementStore.shared.registerSuccessfulConnectionEvent(allowReviewPrompt: false)
             
             webRTCService.setAudioEnabled(sessionId: sessionId, enabled: isAudioEnabled)
             

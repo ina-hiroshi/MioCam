@@ -1,0 +1,27 @@
+[
+  {
+    "id": "01_live_nursery",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/01_live_nursery_1290x2796.png"
+  },
+  {
+    "id": "02_camera_qr",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/02_camera_qr_1290x2796.png"
+  },
+  {
+    "id": "03_monitor_list",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/03_monitor_list_1290x2796.png"
+  },
+  {
+    "id": "04_live_livingroom",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/04_live_livingroom_1290x2796.png"
+  },
+  {
+    "id": "05_role_selection",
+    "locale": "ja",
+    "output": "appstore/marketing/localized/ja/05_role_selection_1290x2796.png"
+  }
+]

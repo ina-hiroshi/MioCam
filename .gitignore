@@ -53,3 +53,7 @@ AuthKey_*.p8
 *.swp
 *~.nib
 *.tmp
+
+# Python
+__pycache__/
+*.pyc
