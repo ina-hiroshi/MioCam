@@ -20,9 +20,17 @@ protocol WebRTCClientDelegate: AnyObject {
 class WebRTCClient: NSObject {
     let sessionId: String
     let peerConnection: RTCPeerConnection
-    /// クライアント作成時刻（ゴースト検出のタイムアウト用）
-    let createdAt: Date
-    
+    /// 最後に接続状態が変わった時刻（ゴースト検出用）
+    private var lastStateChangeAt = Date()
+    private let connectionStateLock = NSLock()
+    var lastConnectionStateChangeAt: Date {
+        connectionStateLock.lock()
+        defer { connectionStateLock.unlock() }
+        return lastStateChangeAt
+    }
+    /// モニター側でICE再起動のAnswerを待っているか
+    @MainActor var isRestartingIce = false
+
     weak var delegate: WebRTCClientDelegate?
     
     /// リモートビデオトラック（モニター側で受信）
@@ -48,7 +56,6 @@ class WebRTCClient: NSObject {
     init(sessionId: String, peerConnection: RTCPeerConnection) {
         self.sessionId = sessionId
         self.peerConnection = peerConnection
-        self.createdAt = Date()
         super.init()
     }
     
@@ -229,6 +236,9 @@ extension WebRTCClient: RTCPeerConnectionDelegate {
     }
     
     func peerConnection(_ peerConnection: RTCPeerConnection, didChange stateChanged: RTCPeerConnectionState) {
+        connectionStateLock.lock()
+        lastStateChangeAt = Date()
+        connectionStateLock.unlock()
         let stateNames = ["new", "connecting", "connected", "disconnected", "failed", "closed"]
         let stateName = stateChanged.rawValue < stateNames.count ? stateNames[Int(stateChanged.rawValue)] : "unknown"
         print("WebRTC: Connection state changed: \(stateName) (\(stateChanged.rawValue)), sessionId=\(sessionId.prefix(8))")

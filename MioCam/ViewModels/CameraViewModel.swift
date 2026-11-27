@@ -55,6 +55,7 @@ class CameraViewModel: ObservableObject {
     
     /// 処理済みセッションIDを追跡（重複処理防止）
     private var processedSessionIds: Set<String> = []
+    private var processedRestartGenerations: [String: Int] = [:]
     
     private let cameraService = CameraFirestoreService.shared
     private let signalingService = SignalingService.shared
@@ -260,6 +261,7 @@ class CameraViewModel: ObservableObject {
             webRTCService.closeSession(sessionId: oldSessionId)
             connectedMonitors.removeAll { $0.id == oldSessionId }
             processedSessionIds.remove(oldSessionId)
+            processedRestartGenerations.removeValue(forKey: oldSessionId)
             Task.detached { [cameraId] in
                 try? await SignalingService.shared.updateSessionStatus(cameraId: cameraId, sessionId: oldSessionId, status: .disconnected)
                 try? await SignalingService.shared.deleteSession(cameraId: cameraId, sessionId: oldSessionId)
@@ -419,6 +421,7 @@ class CameraViewModel: ObservableObject {
                         // processedSessionIdsからも削除
                         for sessionId in removedSessionIds {
                             self?.processedSessionIds.remove(sessionId)
+                            self?.processedRestartGenerations.removeValue(forKey: sessionId)
                         }
                         
                         // 帯域幅監視が品質を自動調整するため、ここでは調整しない
@@ -428,6 +431,7 @@ class CameraViewModel: ObservableObject {
                     // モニター側からの音声 ON/OFF を Firestore 経由で反映
                     for session in sessions {
                         guard let sessionId = session.id else { continue }
+                        self?.handleRestartOfferIfNeeded(session, sessionId: sessionId, cameraId: cameraId)
                         let enabled = session.isAudioEnabled ?? false
                         guard let index = self?.connectedMonitors.firstIndex(where: { $0.id == sessionId }) else {
                             continue
@@ -451,6 +455,30 @@ class CameraViewModel: ObservableObject {
         }
     }
     
+    private func handleRestartOfferIfNeeded(_ session: SessionModel, sessionId: String, cameraId: String) {
+        guard let generation = session.restartGeneration,
+              let offerData = session.restartOffer,
+              let offer = RTCSessionDescription.from(dict: offerData),
+              offer.type == .offer else { return }
+        if let processedGeneration = processedRestartGenerations[sessionId], processedGeneration >= generation {
+            return
+        }
+
+        // 監視の通知が重なっても同じOfferを処理しない
+        processedRestartGenerations[sessionId] = generation
+        Task { @MainActor in
+            do {
+                let answer = try await webRTCService.handleRestartOffer(sessionId: sessionId, offer: offer)
+                guard processedRestartGenerations[sessionId] == generation else { return }
+                try await signalingService.setRestartAnswer(
+                    cameraId: cameraId, sessionId: sessionId, answer: answer.toDict(), generation: generation
+                )
+            } catch {
+                print("ICE再起動のOffer処理エラー: \(error.localizedDescription)")
+            }
+        }
+    }
+
     // MARK: - Quality Adjustment
     
     /// 帯域幅指標を集計
@@ -632,10 +660,15 @@ class CameraViewModel: ObservableObject {
                 iceCandidateListeners.removeValue(forKey: sessionId)
                 connectedMonitors.removeAll { $0.id == sessionId }
                 processedSessionIds.remove(sessionId)
+                processedRestartGenerations.removeValue(forKey: sessionId)
             }
             let newCount = connectedMonitors.count
             if connectedMonitorCount != newCount {
                 connectedMonitorCount = newCount
+                if newCount == 0 {
+                    CameraCaptureService.shared.stopCapture()
+                    playDisconnectionSound()
+                }
                 try? await cameraService.updateConnectedMonitorCount(cameraId: cameraId, count: newCount)
             }
             for sessionId in closedGhostIds {
@@ -771,6 +804,7 @@ class CameraViewModel: ObservableObject {
             
             // 処理済みセッションをリセット
             processedSessionIds.removeAll()
+            processedRestartGenerations.removeAll()
             
             // 接続モニター数をリセット
             try await cameraService.updateConnectedMonitorCount(cameraId: cameraId, count: 0)
@@ -848,6 +882,7 @@ class CameraViewModel: ObservableObject {
         
         // WebRTC接続を終了
         webRTCService.closeAllSessions()
+        processedRestartGenerations.removeAll()
         
         // バックグラウンドオーディオを停止
         backgroundAudioService.stopForCameraMode()
@@ -905,7 +940,10 @@ extension CameraViewModel: WebRTCServiceDelegate {
                 // 接続が確立した時に音声を再生
                 playConnectionSound()
                 
-            case .disconnected, .failed, .closed:
+            case .disconnected, .failed:
+                print("WebRTC: ICEの復旧を待機 - \(sessionId)")
+
+            case .closed:
                 // 接続が切断された場合、モニター数を減らす
                 guard let cameraId = cameraId else { return }
                 // PeerConnectionを確実にクローズ（ゴーストセッション蓄積防止）
@@ -939,6 +977,7 @@ extension CameraViewModel: WebRTCServiceDelegate {
                 
                 // processedSessionIdsからも確実に削除（再接続時に重複チェックでブロックされないように）
                 processedSessionIds.remove(sessionId)
+                processedRestartGenerations.removeValue(forKey: sessionId)
                 
                 // Firestoreのセッションを削除（ゴーストセッション蓄積防止）
                 Task.detached { [cameraId, sessionId] in

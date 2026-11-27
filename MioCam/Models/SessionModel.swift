@@ -17,6 +17,11 @@ struct SessionModel: Codable, Identifiable {
     var displayName: String? // モニター側の表示名（オプショナル）
     var offer: [String: Any]? // SDP Offer (RTCSessionDescription)
     var answer: [String: Any]? // SDP Answer (RTCSessionDescription)
+    var restartOffer: [String: Any]?
+    var restartGeneration: Int?
+    var restartAnswer: [String: Any]?
+    var restartAnswerGeneration: Int?
+    var iceRestartSupported: Bool?
     var status: SessionStatus
     var isAudioEnabled: Bool? // カメラ→モニター方向の音声送信が有効か（カメラ・モニター双方が切り替え可能、デフォルト: false）
     var createdAt: Timestamp
@@ -35,6 +40,11 @@ struct SessionModel: Codable, Identifiable {
         case displayName
         case offer
         case answer
+        case restartOffer
+        case restartGeneration
+        case restartAnswer
+        case restartAnswerGeneration
+        case iceRestartSupported
         case status
         case isAudioEnabled
         case createdAt
@@ -56,6 +66,11 @@ struct SessionModel: Codable, Identifiable {
         // Firestoreから直接取得する場合は、doc.data()から取得する方が確実
         offer = nil
         answer = nil
+        restartOffer = nil
+        restartAnswer = nil
+        restartGeneration = try container.decodeIfPresent(Int.self, forKey: .restartGeneration)
+        restartAnswerGeneration = try container.decodeIfPresent(Int.self, forKey: .restartAnswerGeneration)
+        iceRestartSupported = try container.decodeIfPresent(Bool.self, forKey: .iceRestartSupported)
     }
     
     /// Firestoreのドキュメントデータから直接初期化（SDPを含む）
@@ -81,6 +96,11 @@ struct SessionModel: Codable, Identifiable {
         // SDPを[String: Any]として取得
         self.offer = documentData["offer"] as? [String: Any]
         self.answer = documentData["answer"] as? [String: Any]
+        self.restartOffer = documentData["restartOffer"] as? [String: Any]
+        self.restartGeneration = documentData["restartGeneration"] as? Int
+        self.restartAnswer = documentData["restartAnswer"] as? [String: Any]
+        self.restartAnswerGeneration = documentData["restartAnswerGeneration"] as? Int
+        self.iceRestartSupported = documentData["iceRestartSupported"] as? Bool
     }
     
     func encode(to encoder: Encoder) throws {
@@ -93,6 +113,9 @@ struct SessionModel: Codable, Identifiable {
         try container.encode(status, forKey: .status)
         try container.encodeIfPresent(isAudioEnabled, forKey: .isAudioEnabled)
         try container.encode(createdAt, forKey: .createdAt)
-        // offer/answerは別途Firestoreに書き込む
+        try container.encodeIfPresent(restartGeneration, forKey: .restartGeneration)
+        try container.encodeIfPresent(restartAnswerGeneration, forKey: .restartAnswerGeneration)
+        try container.encodeIfPresent(iceRestartSupported, forKey: .iceRestartSupported)
+        // SDPは別途Firestoreに書き込む
     }
 }

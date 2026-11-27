@@ -161,6 +161,25 @@ class WebRTCService: NSObject, @unchecked Sendable {
             }
         }
         
+        let answer = try await applyOffer(sessionId: sessionId, client: client, offer: offer)
+
+        // SDP設定後にエンコーディングパラメータを設定（初期値は1080p、解像度優先）
+        // 注意: SDPが設定された後にパラメータを設定する必要がある場合があります
+        if let videoSender = client.videoSender {
+            configureVideoEncoding(sender: videoSender, for1080p: true, preferResolution: true)
+        }
+
+        delegate?.webRTCService(self, didGenerateAnswer: answer, for: sessionId)
+    }
+
+    func handleRestartOffer(sessionId: String, offer: RTCSessionDescription) async throws -> RTCSessionDescription {
+        guard let client = clients[sessionId] else { throw WebRTCError.sessionNotFound }
+        return try await applyOffer(sessionId: sessionId, client: client, offer: offer)
+    }
+
+    private func applyOffer(
+        sessionId: String, client: WebRTCClient, offer: RTCSessionDescription
+    ) async throws -> RTCSessionDescription {
         // Offerを設定（completion handler版を使用 - Swift async版は実機でハングする場合がある）
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             client.peerConnection.setRemoteDescription(offer) { error in
@@ -185,16 +204,9 @@ class WebRTCService: NSObject, @unchecked Sendable {
                 if let error = error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
-        
-        // SDP設定後にエンコーディングパラメータを設定（初期値は1080p、解像度優先）
-        // 注意: SDPが設定された後にパラメータを設定する必要がある場合があります
-        if let videoSender = client.videoSender {
-            configureVideoEncoding(sender: videoSender, for1080p: true, preferResolution: true)
-        }
-        
-        delegate?.webRTCService(self, didGenerateAnswer: answer, for: sessionId)
+        return answer
     }
-    
+
     // MARK: - Monitor Side (受信側)
     
     /// モニター側から接続を開始（SDP Offerを生成）
@@ -217,12 +229,48 @@ class WebRTCService: NSObject, @unchecked Sendable {
             client.peerConnection.add(monitorAudioTrack, streamIds: [streamId])
         }
         
+        let offer = try await makeLocalOffer(client: client, iceRestart: false)
+        delegate?.webRTCService(self, didGenerateOffer: offer, for: sessionId)
+    }
+
+    @MainActor
+    func restartIce(sessionId: String) async throws -> RTCSessionDescription {
+        guard let client = clients[sessionId] else { throw WebRTCError.sessionNotFound }
+        // Offer生成中に届く候補もAnswer設定まで保持する
+        client.isRestartingIce = true
+        do {
+            return try await makeLocalOffer(client: client, iceRestart: true)
+        } catch {
+            client.isRestartingIce = false
+            throw error
+        }
+    }
+
+    @MainActor
+    func handleRestartAnswer(sessionId: String, answer: RTCSessionDescription) async throws {
+        guard let client = clients[sessionId] else { throw WebRTCError.sessionNotFound }
+        guard client.peerConnection.signalingState == .haveLocalOffer else { return }
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            client.peerConnection.setRemoteDescription(answer) { error in
+                if let error = error { continuation.resume(throwing: error) } else { continuation.resume() }
+            }
+        }
+        client.isRestartingIce = false
+        drainPendingICECandidates(sessionId: sessionId)
+    }
+
+    private func makeLocalOffer(client: WebRTCClient, iceRestart: Bool) async throws -> RTCSessionDescription {
         // Offerを生成（音声受信を有効化）
+        var mandatoryConstraints = [
+            "OfferToReceiveAudio": "true",
+            "OfferToReceiveVideo": "true"
+        ]
+        if iceRestart {
+            mandatoryConstraints["IceRestart"] = "true"
+        }
         let constraints = RTCMediaConstraints(
-            mandatoryConstraints: [
-                "OfferToReceiveAudio": "true",
-                "OfferToReceiveVideo": "true"
-            ],
+            mandatoryConstraints: mandatoryConstraints,
             optionalConstraints: nil
         )
         // completion handler版を使用（Swift async版は実機でハングする場合がある）
@@ -238,10 +286,9 @@ class WebRTCService: NSObject, @unchecked Sendable {
                 if let error = error { continuation.resume(throwing: error) } else { continuation.resume() }
             }
         }
-        
-        delegate?.webRTCService(self, didGenerateOffer: offer, for: sessionId)
+        return offer
     }
-    
+
     /// SDP Answerを受け取って設定（モニター側）
     func handleAnswer(sessionId: String, answer: RTCSessionDescription) async throws {
         guard let client = clients[sessionId] else {
@@ -306,10 +353,11 @@ class WebRTCService: NSObject, @unchecked Sendable {
     
     /// ICE Candidateを追加（同期版 - async/awaitデッドロック回避）
     /// setRemoteDescription完了前はキューに保存、完了後はfire-and-forgetで直接追加
+    @MainActor
     func addICECandidate(sessionId: String, candidate: RTCIceCandidate) {
         guard let client = clients[sessionId] else { return }
-        // remote descriptionが設定されていない場合はキューに保存
-        guard client.peerConnection.remoteDescription != nil else {
+        // remote descriptionの設定前やICE再起動のAnswer待ちはキューに保存
+        guard client.peerConnection.remoteDescription != nil, !client.isRestartingIce else {
             client.addPendingCandidate(candidate)
             #if DEBUG
             print("WebRTCService: ICE候補キューイング - \(candidate.sdp.prefix(80))")
@@ -378,19 +426,18 @@ class WebRTCService: NSObject, @unchecked Sendable {
         }
     }
     
-    /// ゴーストクライアント（切断/失敗/クローズ状態のまま残っているクライアント、または接続中でタイムアウトしたクライアント）を検出してクローズする。
+    /// ゴーストクライアント（クローズ済み、または接続前や失敗状態でタイムアウトしたクライアント）を検出してクローズする。
     /// カメラ側で定期呼び出ししてリソース漏れを防止する。
     /// - Returns: クローズしたセッションIDのリスト（呼び出し側でFirestore等のクリーンアップに利用可能）
     func closeGhostClients() -> [String] {
-        let ghostStates: Set<RTCPeerConnectionState> = [.disconnected, .failed, .closed]
         let now = Date()
         let timeoutSeconds: TimeInterval = 30
         let ghostIds = clients.filter { entry in
             let state = entry.value.peerConnection.connectionState
-            if ghostStates.contains(state) { return true }
-            // .new/.connecting が30秒以上続いている場合もゴーストとして扱う
-            if state == .new || state == .connecting {
-                return now.timeIntervalSince(entry.value.createdAt) > timeoutSeconds
+            if state == .closed { return true }
+            // ICE再起動を待てるよう、同じ状態が続いた時間で判定する
+            if state == .new || state == .connecting || state == .failed {
+                return now.timeIntervalSince(entry.value.lastConnectionStateChangeAt) > timeoutSeconds
             }
             return false
         }.map { $0.key }
@@ -576,6 +623,8 @@ class WebRTCService: NSObject, @unchecked Sendable {
         let config = RTCConfiguration()
         config.iceServers = iceServers
         config.sdpSemantics = .unifiedPlan
+        config.bundlePolicy = .maxBundle
+        config.rtcpMuxPolicy = .require
         config.continualGatheringPolicy = .gatherContinually  // ネットワーク変動時にも新しいICE候補を生成
         
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)

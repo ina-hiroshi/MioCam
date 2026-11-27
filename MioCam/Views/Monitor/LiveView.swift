@@ -39,6 +39,17 @@ struct LiveView: View {
     @State private var videoTrack: RTCVideoTrack?
     @State private var audioTrack: RTCAudioTrack?
     @State private var sessionId: String?
+    @State private var createdSessionId: String?
+    @State private var pendingICECandidates: [(sessionId: String, candidate: RTCIceCandidate)] = []
+    @State private var connectionCamera: CameraModel?
+    @State private var displayNameTask: Task<String?, Never>?
+    @State private var networkPathObserver: NetworkPathObserver?
+    @State private var iceRestartSupported = false
+    @State private var restartGeneration = 0
+    @State private var receivedRestartAnswerGeneration: Int?
+    @State private var isAwaitingRestartAnswer = false
+    @State private var hasAttemptedIceRestart = false
+    @State private var iceRestartTimeoutTask: Task<Void, Never>?
     @State private var sessionMonitorListener: ListenerRegistration?  // Answerと音声設定を統合
     @State private var iceCandidateListener: ListenerRegistration?
     @State private var originalIdleTimerDisabled: Bool = false
@@ -64,6 +75,7 @@ struct LiveView: View {
     @State private var engagementCountedSessionIds: Set<String> = []
     
     private let maxReconnectAttempts = 5
+    private let connectionTimeoutNanoseconds: UInt64 = 30_000_000_000
     
     private let webRTCService = WebRTCService.shared
     private let signalingService = SignalingService.shared
@@ -162,6 +174,12 @@ struct LiveView: View {
             AdBannerView()
         }
         .task {
+            let pathObserver = NetworkPathObserver { [self] in
+                handleNetworkPathChange()
+            }
+            networkPathObserver = pathObserver
+            pathObserver.start()
+
             // アイドルタイマーを無効化（画面スリープを防止）
             originalIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
             UIApplication.shared.isIdleTimerDisabled = true
@@ -588,17 +606,48 @@ struct LiveView: View {
     }
     
     private func startConnection() async {
-        guard authService.currentUser?.uid != nil else {
+        guard let user = authService.currentUser else {
             connectionError = String(localized: "auth_required")
             isConnecting = false
             return
         }
-        
-        // 再接続時にクリーンアップフラグをリセット（fullScreenCoverでViewが再利用される場合に備える）
+
+        // 古いセッションのコールバックを無効にしてから接続を作り直す
+        let oldSessionId = sessionId
+        let newSessionId = UUID().uuidString
+        sessionId = newSessionId
         hasCleanedUp = false
-        
-        // 前回のセッションをクリーンアップ（再接続時）
-        if let oldSessionId = sessionId {
+        createdSessionId = nil
+        pendingICECandidates.removeAll()
+        connectionCamera = nil
+        iceRestartSupported = false
+        resetIceRestart()
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        networkChangeReconnectScheduled = false
+        displayNameTask?.cancel()
+
+        let monitorUserId = user.uid
+        let authDisplayName = user.displayName
+        displayNameTask = Task {
+            if let authDisplayName, !authDisplayName.isEmpty {
+                return authDisplayName
+            }
+            do {
+                let userDoc = try await FirestoreService.shared.db
+                    .collection("users")
+                    .document(monitorUserId)
+                    .getDocument()
+                if let name = userDoc.data()?["displayName"] as? String, !name.isEmpty {
+                    return name
+                }
+            } catch {
+                print("ユーザー情報取得エラー: \(error.localizedDescription)")
+            }
+            return nil
+        }
+
+        if let oldSessionId {
             sessionMonitorListener?.remove()
             sessionMonitorListener = nil
             iceCandidateListener?.remove()
@@ -606,15 +655,19 @@ struct LiveView: View {
             connectedSessionsListener?.remove()
             connectedSessionsListener = nil
             webRTCService.closeSession(sessionId: oldSessionId)
-            // Firestoreのゴーストセッション削除
-            try? await signalingService.updateSessionStatus(
-                cameraId: cameraLink.cameraId, sessionId: oldSessionId, status: .disconnected
-            )
-            try? await signalingService.deleteSession(
-                cameraId: cameraLink.cameraId, sessionId: oldSessionId
-            )
+            videoTrack = nil
+            audioTrack = nil
+            // 古いセッションの削除が新しい接続を待たせないようにする
+            Task {
+                try? await signalingService.updateSessionStatus(
+                    cameraId: cameraLink.cameraId, sessionId: oldSessionId, status: .disconnected
+                )
+                try? await signalingService.deleteSession(
+                    cameraId: cameraLink.cameraId, sessionId: oldSessionId
+                )
+            }
         }
-        
+
         isConnecting = true
         connectionError = nil
         connectionTimedOut = false
@@ -625,7 +678,7 @@ struct LiveView: View {
         
         // 30秒のタイムアウトタスクを開始
         connectionTimeoutTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 30_000_000_000) // 30秒
+            try? await Task.sleep(nanoseconds: connectionTimeoutNanoseconds)
             if !Task.isCancelled && isConnecting && videoTrack == nil {
                 connectionTimedOut = true
                 connectionError = String(localized: "connection_timing_out")
@@ -639,6 +692,7 @@ struct LiveView: View {
             if camera == nil {
                 camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraLink.cameraId)
             }
+            guard sessionId == newSessionId, !hasCleanedUp else { return }
             guard let camera = camera else {
                 connectionError = String(localized: "camera_not_found")
                 isConnecting = false
@@ -654,9 +708,7 @@ struct LiveView: View {
                 return
             }
             
-            // セッションIDを生成（UUID）
-            let newSessionId = UUID().uuidString
-            sessionId = newSessionId
+            connectionCamera = camera
             
             // 1. WebRTC接続を開始してOfferを生成
             // Offerはdelegate経由で受け取る（handleOfferGenerated）
@@ -666,6 +718,7 @@ struct LiveView: View {
             // 接続確立後に開始（handleRemoteVideoTrackで開始）
             
         } catch {
+            guard sessionId == newSessionId, !hasCleanedUp else { return }
             connectionError = error.localizedDescription
             isConnecting = false
         }
@@ -752,12 +805,12 @@ struct LiveView: View {
         }
         
         // セッションIDが一致しているか確認
-        guard sessionId == self.sessionId else {
+        guard sessionId == self.sessionId, !hasCleanedUp else {
             return
         }
         
-        // cameraInfoはviewModel.cameraStatusesを参照。nilの場合はgetCameraで取得
-        var camera = viewModel.cameraStatuses[cameraLink.cameraId]
+        // 接続開始時に取得したカメラ情報を使う
+        var camera = connectionCamera
         if camera == nil {
             do {
                 camera = try await CameraFirestoreService.shared.getCamera(cameraId: cameraLink.cameraId)
@@ -780,24 +833,9 @@ struct LiveView: View {
             let monitorDeviceName = UIDevice.current.name
             
             // 2. Firestoreにセッション + Offerを書き込み（UUIDをドキュメントIDとして使用）
-            // displayName: Authを優先（DB読み取り削減）、未設定時のみFirestoreから取得
-            var displayName = authService.currentUser?.displayName
-            if displayName == nil || displayName?.isEmpty == true {
-                do {
-                    let userDoc = try await FirestoreService.shared.db
-                        .collection("users")
-                        .document(monitorUserId)
-                        .getDocument()
-                    if let userData = userDoc.data(),
-                       let name = userData["displayName"] as? String,
-                       !name.isEmpty {
-                        displayName = name
-                    }
-                } catch {
-                    print("ユーザー情報取得エラー: \(error.localizedDescription)")
-                }
-            }
-            
+            let displayName = await displayNameTask?.value
+            guard sessionId == self.sessionId, !hasCleanedUp else { return }
+
             #if DEBUG
             print("セッション作成時のdisplayName: \(displayName ?? "nil")")
             #endif
@@ -814,6 +852,14 @@ struct LiveView: View {
                 displayName: displayName
             )
             
+            guard sessionId == self.sessionId, !hasCleanedUp else {
+                try? await signalingService.deleteSession(cameraId: cameraLink.cameraId, sessionId: sessionId)
+                return
+            }
+            createdSessionId = sessionId
+            let candidates = pendingICECandidates.filter { $0.sessionId == sessionId }
+            pendingICECandidates.removeAll()
+
             // 3. セッション監視（Answer・音声設定を1リスナーで取得、DB読み取り削減）
             sessionMonitorListener = signalingService.observeSessionForMonitor(
                 cameraId: cameraLink.cameraId,
@@ -825,7 +871,7 @@ struct LiveView: View {
                 },
                 onSessionUpdate: { [self] result in
                     Task { @MainActor in
-                        await self.handleSessionUpdate(result)
+                        await self.handleSessionUpdate(result, sessionId: sessionId)
                     }
                 }
             )
@@ -840,7 +886,11 @@ struct LiveView: View {
                 }
             }
             
+            for entry in candidates {
+                await handleICECandidate(entry.candidate, sessionId: sessionId)
+            }
         } catch {
+            guard sessionId == self.sessionId, !hasCleanedUp else { return }
             connectionError = error.localizedDescription
             isConnecting = false
         }
@@ -913,8 +963,9 @@ struct LiveView: View {
         }
     }
     
+    @MainActor
     func handleICECandidatesReceived(_ result: Result<[ICECandidateModel], Error>, sessionId: String) async {
-        guard !hasCleanedUp else { return }
+        guard !hasCleanedUp, sessionId == self.sessionId else { return }
         switch result {
         case .success(let candidates):
             let cameraCandidates = candidates.filter { $0.sender == .camera }
@@ -951,11 +1002,17 @@ struct LiveView: View {
         }
     }
     
-    func handleSessionUpdate(_ result: Result<[String: Any]?, Error>) async {
-        guard !hasCleanedUp else { return }
+    func handleSessionUpdate(_ result: Result<[String: Any]?, Error>, sessionId: String) async {
+        guard !hasCleanedUp, sessionId == self.sessionId else { return }
         switch result {
         case .success(let sessionData):
-            guard let sessionData = sessionData else { return }
+            guard let sessionData else {
+                if hasReceivedAnswer && !isReconnecting {
+                    scheduleFullReconnect()
+                }
+                return
+            }
+            iceRestartSupported = sessionData["iceRestartSupported"] as? Bool ?? false
             
             // isAudioEnabledがnilの場合はfalseとして扱う（デフォルトOFF）
             let isAudioEnabled = sessionData["isAudioEnabled"] as? Bool ?? false
@@ -969,6 +1026,24 @@ struct LiveView: View {
                 track.isEnabled = isAudioEnabled && !isSpeakerMuted
             }
             
+            if isAwaitingRestartAnswer,
+               let generation = sessionData["restartAnswerGeneration"] as? Int,
+               generation == restartGeneration, generation != receivedRestartAnswerGeneration,
+               let answerData = sessionData["restartAnswer"] as? [String: Any],
+               let answer = RTCSessionDescription.from(dict: answerData), answer.type == .answer {
+                receivedRestartAnswerGeneration = generation
+                do {
+                    try await webRTCService.handleRestartAnswer(sessionId: sessionId, answer: answer)
+                    guard self.sessionId == sessionId, !hasCleanedUp, iceRestartTimeoutTask != nil else { return }
+                    isAwaitingRestartAnswer = false
+                    if webRTCService.connectionState(for: sessionId) == .connected {
+                        handleConnectionStateChange(.connected, sessionId: sessionId)
+                    }
+                } catch {
+                    print("ICE再起動のAnswer設定エラー: \(error.localizedDescription)")
+                }
+            }
+
         case .failure(let error):
             print("セッション監視エラー: \(error.localizedDescription)")
             #if DEBUG
@@ -988,41 +1063,107 @@ struct LiveView: View {
         return desc.contains("Network connectivity") || desc.contains("Unavailable")
     }
     
-    /// Firestoreネットワーク変化を検知した際の再接続（ICE候補の取りこぼし対策）
+    private func handleNetworkPathChange() {
+        guard hasEverConnected, sessionId != nil, !hasCleanedUp else { return }
+        if iceRestartSupported {
+            performIceRestart()
+        } else {
+            scheduleReconnectForNetworkChange()
+        }
+    }
+
+    /// リスナーが止まった場合はセッションごと作り直す
     private func scheduleReconnectForNetworkChange() {
         guard !networkChangeReconnectScheduled else { return }
         networkChangeReconnectScheduled = true
-        
+        reconnectAttempt = 0
+        scheduleFullReconnect(delay: 3)
+    }
+
+    private func scheduleFullReconnect(delay: Double = 0) {
+        resetIceRestart()
+        isReconnecting = true
+        isConnecting = false
+        connectionError = nil
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = nil
+
         reconnectTask?.cancel()
         reconnectTask = Task { @MainActor in
-            print("WebRTC: Firestoreネットワーク変化検知 - 3秒後に再接続を試行")
-            try? await Task.sleep(nanoseconds: 3_000_000_000)
-            networkChangeReconnectScheduled = false
-            reconnectTask = nil
-            
-            guard !Task.isCancelled, !hasCleanedUp else { return }
-            
-            isReconnecting = true
-            reconnectAttempt = 0
-            if let oldSessionId = sessionId {
-                webRTCService.closeSession(sessionId: oldSessionId)
-                Task {
-                    try? await signalingService.updateSessionStatus(
-                        cameraId: cameraLink.cameraId,
-                        sessionId: oldSessionId,
-                        status: .disconnected
-                    )
-                    try? await signalingService.deleteSession(cameraId: cameraLink.cameraId, sessionId: oldSessionId)
-                }
+            if delay > 0 {
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             }
-            sessionId = UUID().uuidString
+            guard !Task.isCancelled, !hasCleanedUp else { return }
+            reconnectTask = nil
             await startConnection()
         }
     }
-    
+
+    private func scheduleReconnectAfterFailure(immediately: Bool = false) {
+        if reconnectAttempt < maxReconnectAttempts {
+            let delay = immediately ? 0 : pow(2.0, Double(reconnectAttempt)) // 1秒、2秒、4秒、8秒、16秒
+            reconnectAttempt += 1
+            print("WebRTC: 再接続試行 \(reconnectAttempt)/\(maxReconnectAttempts) (\(Int(delay))秒後)")
+            scheduleFullReconnect(delay: delay)
+        } else {
+            resetIceRestart()
+            isConnecting = false
+            isReconnecting = false
+            if connectionError == nil {
+                connectionError = hasEverConnected ? String(localized: "connection_lost_reconnect_failed") : String(localized: "connection_lost")
+            }
+        }
+    }
+
+    private func performIceRestart() {
+        guard let sessionId, hasReceivedAnswer, !hasCleanedUp,
+              !hasAttemptedIceRestart, reconnectTask == nil else { return }
+        hasAttemptedIceRestart = true
+        isAwaitingRestartAnswer = true
+        isReconnecting = true
+        connectionTimeoutTask?.cancel()
+        connectionTimeoutTask = nil
+
+        restartGeneration += 1
+        let generation = restartGeneration
+        iceRestartTimeoutTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: connectionTimeoutNanoseconds)
+            guard !Task.isCancelled, !hasCleanedUp, self.sessionId == sessionId else { return }
+            scheduleReconnectAfterFailure(immediately: true)
+        }
+
+        Task { @MainActor in
+            do {
+                let offer = try await webRTCService.restartIce(sessionId: sessionId)
+                guard !hasCleanedUp, self.sessionId == sessionId,
+                      restartGeneration == generation, iceRestartTimeoutTask != nil else { return }
+                try await signalingService.setRestartOffer(
+                    cameraId: cameraLink.cameraId, sessionId: sessionId, offer: offer.toDict(), generation: generation
+                )
+            } catch {
+                print("ICE再起動のOffer送信エラー: \(error.localizedDescription)")
+                guard !hasCleanedUp, self.sessionId == sessionId,
+                      restartGeneration == generation, iceRestartTimeoutTask != nil else { return }
+                scheduleReconnectAfterFailure()
+            }
+        }
+    }
+
+    private func resetIceRestart() {
+        iceRestartTimeoutTask?.cancel()
+        iceRestartTimeoutTask = nil
+        isAwaitingRestartAnswer = false
+        hasAttemptedIceRestart = false
+        receivedRestartAnswerGeneration = nil
+    }
+
     func handleICECandidate(_ candidate: RTCIceCandidate, sessionId: String) async {
         // モニター側で生成されたICE CandidateをFirestoreに書き込み
-        guard authService.currentUser?.uid != nil else { return }
+        guard sessionId == self.sessionId, !hasCleanedUp, authService.currentUser?.uid != nil else { return }
+        guard createdSessionId == sessionId else {
+            pendingICECandidates.append((sessionId, candidate))
+            return
+        }
         
         do {
             try await signalingService.addICECandidate(
@@ -1125,13 +1266,18 @@ struct LiveView: View {
     
     func handleConnectionStateChange(_ state: WebRTCConnectionState, sessionId: String) {
         // セッションIDが一致しているか確認
-        guard sessionId == self.sessionId else {
+        guard sessionId == self.sessionId, !hasCleanedUp else {
             return
         }
         
         switch state {
         case .connected:
-            // isConnecting は handleRemoteVideoTrack で false にする（映像トラック未着の間はオーバーレイ維持）
+            guard !isAwaitingRestartAnswer, reconnectTask == nil else { return }
+            resetIceRestart()
+            // ICE再起動では既存の映像トラックを使う
+            if videoTrack != nil {
+                isConnecting = false
+            }
             isReconnecting = false
             connectionError = nil
             connectionTimedOut = false
@@ -1140,8 +1286,6 @@ struct LiveView: View {
             // タイムアウトタスクをキャンセル
             connectionTimeoutTask?.cancel()
             connectionTimeoutTask = nil
-            reconnectTask?.cancel()
-            reconnectTask = nil
             
             // WebRTC接続完了後にスピーカー出力を確実にする
             backgroundAudioService.ensureSpeakerOutput()
@@ -1149,53 +1293,17 @@ struct LiveView: View {
             if connectedSessionsListener == nil, let currentSessionId = self.sessionId {
                 startObservingConnectedSessions(cameraId: cameraLink.cameraId, currentSessionId: currentSessionId)
             }
-        case .disconnected, .failed:
-            // タイムアウトタスクをキャンセル
+        case .disconnected:
+            isReconnecting = true
+        case .failed:
+            guard reconnectTask == nil else { return }
             connectionTimeoutTask?.cancel()
             connectionTimeoutTask = nil
-            
-            // 一度接続に成功していた場合のみ自動再接続を試みる
-            if hasEverConnected && reconnectAttempt < maxReconnectAttempts {
-                isReconnecting = true
-                isConnecting = false
-                connectionError = nil
-                
-                let attempt = reconnectAttempt
-                let delay = pow(2.0, Double(attempt)) // 1s, 2s, 4s, 8s, 16s
-                
-                reconnectTask?.cancel()
-                reconnectTask = Task { @MainActor in
-                    print("WebRTC: 再接続試行 \(attempt + 1)/\(maxReconnectAttempts) (\(Int(delay))秒後)")
-                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    
-                    guard !Task.isCancelled else { return }
-                    
-                    // 再接続前に古いセッションIDをクリーンアップ
-                    if let oldSessionId = self.sessionId {
-                        // 古いセッションをクリーンアップ
-                        self.webRTCService.closeSession(sessionId: oldSessionId)
-                        // Firestoreのセッションも削除
-                        Task {
-                            try? await self.signalingService.updateSessionStatus(
-                                cameraId: self.cameraLink.cameraId,
-                                sessionId: oldSessionId,
-                                status: .disconnected
-                            )
-                            try? await self.signalingService.deleteSession(cameraId: self.cameraLink.cameraId, sessionId: oldSessionId)
-                        }
-                    }
-                    
-                    reconnectAttempt += 1
-                    // 新しいセッションIDを生成
-                    self.sessionId = UUID().uuidString
-                    await startConnection()
-                }
+
+            if iceRestartSupported && hasReceivedAnswer && !hasAttemptedIceRestart {
+                performIceRestart()
             } else {
-                isConnecting = false
-                isReconnecting = false
-                if connectionError == nil {
-                    connectionError = hasEverConnected ? String(localized: "connection_lost_reconnect_failed") : String(localized: "connection_lost")
-                }
+                scheduleReconnectAfterFailure()
             }
         case .closed:
             // 再接続中でない場合のみ状態をリセット
@@ -1217,6 +1325,15 @@ struct LiveView: View {
         // 二重実行防止（MainActor上で排他制御して競合を防ぐ）
         guard !hasCleanedUp else { return }
         hasCleanedUp = true
+        networkPathObserver?.stop()
+        networkPathObserver = nil
+        createdSessionId = nil
+        pendingICECandidates.removeAll()
+        connectionCamera = nil
+        displayNameTask?.cancel()
+        displayNameTask = nil
+        iceRestartSupported = false
+        resetIceRestart()
         
         // すべてのタスクをキャンセル
         hideOverlayTask?.cancel()

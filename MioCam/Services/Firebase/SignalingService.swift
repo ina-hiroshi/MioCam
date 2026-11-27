@@ -59,10 +59,31 @@ class SignalingService {
             .collection("sessions").document(sessionId)
             .updateData([
                 "answer": answer,
+                "iceRestartSupported": true,
                 "status": SessionModel.SessionStatus.connected.rawValue
             ])
     }
     
+    /// ICE再起動のOfferを世代番号と一緒に書き込む（モニター側）
+    func setRestartOffer(cameraId: String, sessionId: String, offer: [String: Any], generation: Int) async throws {
+        try await db.collection("cameras").document(cameraId)
+            .collection("sessions").document(sessionId)
+            .updateData([
+                "restartOffer": offer,
+                "restartGeneration": generation
+            ])
+    }
+
+    /// ICE再起動のAnswerを対応する世代番号と一緒に書き込む（カメラ側）
+    func setRestartAnswer(cameraId: String, sessionId: String, answer: [String: Any], generation: Int) async throws {
+        try await db.collection("cameras").document(cameraId)
+            .collection("sessions").document(sessionId)
+            .updateData([
+                "restartAnswer": answer,
+                "restartAnswerGeneration": generation
+            ])
+    }
+
     /// セッションステータスを更新
     func updateSessionStatus(cameraId: String, sessionId: String, status: SessionModel.SessionStatus) async throws {
         try await db.collection("cameras").document(cameraId)
