@@ -48,6 +48,7 @@ struct LiveView: View {
     @State private var restartGeneration = 0
     @State private var receivedRestartAnswerGeneration: Int?
     @State private var isAwaitingRestartAnswer = false
+    @State private var hasWrittenRestartOffer = false
     @State private var hasAttemptedIceRestart = false
     @State private var iceRestartTimeoutTask: Task<Void, Never>?
     @State private var sessionMonitorListener: ListenerRegistration?  // Answerと音声設定を統合
@@ -1120,6 +1121,7 @@ struct LiveView: View {
               !hasAttemptedIceRestart, reconnectTask == nil else { return }
         hasAttemptedIceRestart = true
         isAwaitingRestartAnswer = true
+        hasWrittenRestartOffer = false
         isReconnecting = true
         connectionTimeoutTask?.cancel()
         connectionTimeoutTask = nil
@@ -1140,6 +1142,14 @@ struct LiveView: View {
                 try await signalingService.setRestartOffer(
                     cameraId: cameraLink.cameraId, sessionId: sessionId, offer: offer.toDict(), generation: generation
                 )
+                guard !hasCleanedUp, self.sessionId == sessionId,
+                      restartGeneration == generation, reconnectTask == nil else { return }
+                hasWrittenRestartOffer = true
+                let candidates = pendingICECandidates.filter { $0.sessionId == sessionId }
+                pendingICECandidates.removeAll { $0.sessionId == sessionId }
+                for entry in candidates {
+                    await handleICECandidate(entry.candidate, sessionId: sessionId)
+                }
             } catch {
                 print("ICE再起動のOffer送信エラー: \(error.localizedDescription)")
                 guard !hasCleanedUp, self.sessionId == sessionId,
@@ -1153,6 +1163,7 @@ struct LiveView: View {
         iceRestartTimeoutTask?.cancel()
         iceRestartTimeoutTask = nil
         isAwaitingRestartAnswer = false
+        hasWrittenRestartOffer = false
         hasAttemptedIceRestart = false
         receivedRestartAnswerGeneration = nil
     }
@@ -1160,7 +1171,8 @@ struct LiveView: View {
     func handleICECandidate(_ candidate: RTCIceCandidate, sessionId: String) async {
         // モニター側で生成されたICE CandidateをFirestoreに書き込み
         guard sessionId == self.sessionId, !hasCleanedUp, authService.currentUser?.uid != nil else { return }
-        guard createdSessionId == sessionId else {
+        guard createdSessionId == sessionId,
+              !isAwaitingRestartAnswer || hasWrittenRestartOffer else {
             pendingICECandidates.append((sessionId, candidate))
             return
         }

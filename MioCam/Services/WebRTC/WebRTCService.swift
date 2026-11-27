@@ -172,8 +172,14 @@ class WebRTCService: NSObject, @unchecked Sendable {
         delegate?.webRTCService(self, didGenerateAnswer: answer, for: sessionId)
     }
 
+    @MainActor
     func handleRestartOffer(sessionId: String, offer: RTCSessionDescription) async throws -> RTCSessionDescription {
         guard let client = clients[sessionId] else { throw WebRTCError.sessionNotFound }
+        client.isRestartingIce = true
+        defer {
+            client.isRestartingIce = false
+            drainPendingICECandidates(sessionId: sessionId)
+        }
         return try await applyOffer(sessionId: sessionId, client: client, offer: offer)
     }
 
@@ -187,8 +193,10 @@ class WebRTCService: NSObject, @unchecked Sendable {
             }
         }
         
-        // remote description設定後、キューに溜まったICE Candidateを処理
-        drainPendingICECandidates(sessionId: sessionId)
+        // 初回接続ではremote description設定後に候補を処理し、再起動ではOfferの処理完了まで保持する
+        if !client.isRestartingIce {
+            drainPendingICECandidates(sessionId: sessionId)
+        }
         
         // Answerを生成（completion handler版を使用）
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
@@ -356,7 +364,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     @MainActor
     func addICECandidate(sessionId: String, candidate: RTCIceCandidate) {
         guard let client = clients[sessionId] else { return }
-        // remote descriptionの設定前やICE再起動のAnswer待ちはキューに保存
+        // remote descriptionの設定前やICE再起動でOffer・Answerを処理する間はキューに保存
         guard client.peerConnection.remoteDescription != nil, !client.isRestartingIce else {
             client.addPendingCandidate(candidate)
             #if DEBUG
