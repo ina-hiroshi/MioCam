@@ -161,7 +161,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
             }
         }
         
-        let answer = try await applyOffer(sessionId: sessionId, client: client, offer: offer)
+        let answer = try await applyOffer(sessionId: sessionId, client: client, offer: offer, drainPendingCandidates: true)
 
         // SDP設定後にエンコーディングパラメータを設定（初期値は1080p、解像度優先）
         // 注意: SDPが設定された後にパラメータを設定する必要がある場合があります
@@ -180,11 +180,11 @@ class WebRTCService: NSObject, @unchecked Sendable {
             client.isRestartingIce = false
             drainPendingICECandidates(sessionId: sessionId)
         }
-        return try await applyOffer(sessionId: sessionId, client: client, offer: offer)
+        return try await applyOffer(sessionId: sessionId, client: client, offer: offer, drainPendingCandidates: false)
     }
 
     private func applyOffer(
-        sessionId: String, client: WebRTCClient, offer: RTCSessionDescription
+        sessionId: String, client: WebRTCClient, offer: RTCSessionDescription, drainPendingCandidates: Bool
     ) async throws -> RTCSessionDescription {
         // Offerを設定（completion handler版を使用 - Swift async版は実機でハングする場合がある）
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -194,7 +194,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
         }
         
         // 初回接続ではremote description設定後に候補を処理し、再起動ではOfferの処理完了まで保持する
-        if !client.isRestartingIce {
+        if drainPendingCandidates {
             drainPendingICECandidates(sessionId: sessionId)
         }
         
