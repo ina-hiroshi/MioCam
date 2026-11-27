@@ -669,7 +669,9 @@ class CameraViewModel: ObservableObject {
                     CameraCaptureService.shared.stopCapture()
                     playDisconnectionSound()
                 }
-                try? await cameraService.updateConnectedMonitorCount(cameraId: cameraId, count: newCount)
+                Task.detached { [cameraId, newCount] in
+                    try? await CameraFirestoreService.shared.updateConnectedMonitorCount(cameraId: cameraId, count: newCount)
+                }
             }
             for sessionId in closedGhostIds {
                 Task.detached { [cameraId] in

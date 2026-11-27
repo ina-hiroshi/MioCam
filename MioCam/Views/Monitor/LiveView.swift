@@ -680,11 +680,12 @@ struct LiveView: View {
         // 30秒のタイムアウトタスクを開始
         connectionTimeoutTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: connectionTimeoutNanoseconds)
-            if !Task.isCancelled && isConnecting && videoTrack == nil {
+            guard !Task.isCancelled, sessionId == newSessionId, isConnecting, videoTrack == nil else { return }
+            if reconnectAttempt >= maxReconnectAttempts {
                 connectionTimedOut = true
                 connectionError = String(localized: "connection_timing_out")
-                isConnecting = false
             }
+            scheduleReconnectAfterFailure()
         }
         
         do {
@@ -1008,7 +1009,7 @@ struct LiveView: View {
         switch result {
         case .success(let sessionData):
             guard let sessionData else {
-                if hasReceivedAnswer && !isReconnecting {
+                if hasReceivedAnswer && reconnectTask == nil {
                     scheduleFullReconnect()
                 }
                 return

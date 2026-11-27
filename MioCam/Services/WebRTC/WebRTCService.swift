@@ -54,6 +54,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }()
     
     /// アクティブなPeerConnection（sessionId -> WebRTCClient）
+    @MainActor
     private var clients: [String: WebRTCClient] = [:]
     
     /// ローカルビデオトラック（カメラ側用）
@@ -70,6 +71,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     private var monitorLocalAudioSource: RTCAudioSource?
     
     /// セッションIDからmonitorUserIdへのマッピング（ユーザー単位の音声制御用）
+    @MainActor
     private var sessionToUserId: [String: String] = [:]
     
     /// ICEサーバー設定
@@ -135,6 +137,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// 新しいモニター接続を処理（カメラ側: SDP Offerを受け取ってAnswerを返す）
+    @MainActor
     func handleIncomingSession(sessionId: String, offer: RTCSessionDescription, monitorUserId: String? = nil) async throws {
         let client = try createPeerConnection(sessionId: sessionId)
         
@@ -195,7 +198,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
         
         // 初回接続ではremote description設定後に候補を処理し、再起動ではOfferの処理完了まで保持する
         if drainPendingCandidates {
-            drainPendingICECandidates(sessionId: sessionId)
+            await drainPendingICECandidates(sessionId: sessionId)
         }
         
         // Answerを生成（completion handler版を使用）
@@ -218,6 +221,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     // MARK: - Monitor Side (受信側)
     
     /// モニター側から接続を開始（SDP Offerを生成）
+    @MainActor
     func startConnection(sessionId: String) async throws {
         let client = try createPeerConnection(sessionId: sessionId)
         
@@ -298,6 +302,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
 
     /// SDP Answerを受け取って設定（モニター側）
+    @MainActor
     func handleAnswer(sessionId: String, answer: RTCSessionDescription) async throws {
         guard let client = clients[sessionId] else {
             print("WebRTCService.handleAnswer: セッションが見つかりません - \(sessionId)")
@@ -385,6 +390,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// キューに溜まったICE Candidateを処理（remote description設定後に呼び出す）- 同期版
+    @MainActor
     private func drainPendingICECandidates(sessionId: String) {
         guard let client = clients[sessionId] else { return }
         
@@ -405,6 +411,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// セッションを終了
+    @MainActor
     func closeSession(sessionId: String) {
         guard let client = clients[sessionId] else { return }
         
@@ -422,6 +429,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// すべてのセッションを終了
+    @MainActor
     func closeAllSessions() {
         let clientsCopy = clients
         clients.removeAll()
@@ -437,6 +445,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     /// ゴーストクライアント（クローズ済み、または接続前や失敗状態でタイムアウトしたクライアント）を検出してクローズする。
     /// カメラ側で定期呼び出ししてリソース漏れを防止する。
     /// - Returns: クローズしたセッションIDのリスト（呼び出し側でFirestore等のクリーンアップに利用可能）
+    @MainActor
     func closeGhostClients() -> [String] {
         let now = Date()
         let timeoutSeconds: TimeInterval = 30
@@ -456,17 +465,20 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// セッションの接続状態を取得
+    @MainActor
     func connectionState(for sessionId: String) -> WebRTCConnectionState? {
         guard let client = clients[sessionId] else { return nil }
         return mapConnectionState(client.peerConnection.connectionState)
     }
     
     /// リモートビデオトラックを取得（モニター側）
+    @MainActor
     func remoteVideoTrack(for sessionId: String) -> RTCVideoTrack? {
         return clients[sessionId]?.remoteVideoTrack
     }
     
     /// リモートオーディオトラックを取得（モニター側）
+    @MainActor
     func remoteAudioTrack(for sessionId: String) -> RTCAudioTrack? {
         return clients[sessionId]?.remoteAudioTrack
     }
@@ -474,6 +486,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     // MARK: - Audio Control (Camera Side)
     
     /// 特定セッションの音声を有効/無効化（カメラ側）
+    @MainActor
     func setAudioEnabled(sessionId: String, enabled: Bool) {
         guard let client = clients[sessionId],
               let audioSender = client.audioSender else {
@@ -486,6 +499,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// 特定ユーザーの全セッションの音声を有効/無効化（カメラ側）
+    @MainActor
     func setAudioEnabledForUser(userId: String, enabled: Bool) {
         let targetSessions = sessionToUserId.compactMap { sessionId, mappedUserId in
             mappedUserId == userId ? sessionId : nil
@@ -545,6 +559,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// 全セッションのビデオエンコーディングパラメータを更新（品質変更時）
+    @MainActor
     func updateVideoEncodingForAllSessions(for1080p: Bool, preferResolution: Bool = true) {
         for (_, client) in clients {
             if let videoSender = client.videoSender {
@@ -555,6 +570,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     
     /// フレームレートに基づいて動的にエンコーディングパラメータを更新
     /// フレームレートが低すぎる場合は解像度を下げてフレームレートを回復させる
+    @MainActor
     func updateVideoEncodingBasedOnFrameRate(for1080p: Bool, currentFrameRate: Double) {
         // 1080pを維持しつつ、フレームレートを24fps以上に保つ
         // 24fps未満の場合はバランス型に切り替え（解像度を下げてフレームレートを回復）
@@ -569,6 +585,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     }
     
     /// ビットレートを動的に調整してフレームレートを改善
+    @MainActor
     func adjustBitrateForFrameRate(for1080p: Bool, currentFrameRate: Double) {
         for (_, client) in clients {
             guard let videoSender = client.videoSender else { continue }
@@ -607,12 +624,14 @@ class WebRTCService: NSObject, @unchecked Sendable {
     // MARK: - Statistics
     
     /// セッションの統計情報を取得
+    @MainActor
     func getStats(for sessionId: String) async -> RTCStatisticsReport? {
         guard let client = clients[sessionId] else { return nil }
         return await client.peerConnection.statistics()
     }
     
     /// 全セッションの統計情報を取得
+    @MainActor
     func getAllSessionStats() async -> [String: RTCStatisticsReport] {
         var stats: [String: RTCStatisticsReport] = [:]
         for (sessionId, client) in clients {
@@ -627,6 +646,7 @@ class WebRTCService: NSObject, @unchecked Sendable {
     
     // MARK: - Private Methods
     
+    @MainActor
     private func createPeerConnection(sessionId: String) throws -> WebRTCClient {
         let config = RTCConfiguration()
         config.iceServers = iceServers
